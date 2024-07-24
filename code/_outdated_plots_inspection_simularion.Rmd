@@ -1,0 +1,156 @@
+---
+title: "Plot simulation results"
+output: html_notebook
+---
+
+
+```{r}
+library(EnvStats)
+library(foreach)
+library(ggplot2)
+library(igraph)
+library(ggpubr)
+```
+
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
+```
+
+# Species richness
+
+
+```{r}
+
+plot_spp_richness <- function(steps, pres_mat, title) {
+  
+  timesteps <- 1:steps
+  
+  n_spp_time <- c()
+  
+  for (i in 1:nrow(pres_mat)) {
+  
+  n_spp_time[i] <- length(which(pres_mat[i,] == 1))
+  
+  }
+  
+  
+  df_spprich_time <- data.frame(timesteps,n_spp_time)
+  
+  p.spp <- ggplot(df_spprich_time, aes(x=timesteps, y = n_spp_time)) +
+  geom_line(color="black", linetype="twodash") +
+  theme_bw()+
+  my.theme+
+  xlab("timesteps")+
+  ylab("N species")+
+    ggtitle(title)
+  
+  return(p.spp)
+}
+
+
+
+```
+
+
+```{r}
+
+# facilitation
+simulation1 <- readRDS("../Data/selection_evolution/facilitation/list_res_pos_2.rds")
+
+# competition
+simulation2 <- readRDS("../Data/selection_evolution/competition/list_res_neg_2.rds")
+
+# foodweb
+simulation3 <- readRDS("../data/selection_evolution/foodweb/list_res_fw_1.rds")
+
+# neutral
+simulation4 <- readRDS("../data/neutral/list_res_n_10.rds")
+
+
+```
+
+
+### Traits evolution
+
+```{r, echo=FALSE}
+
+# FACILITATION
+
+pres = simulation1$presence_matrix
+traits = simulation1$traits
+nsteps = length(simulation1$network_list)
+Time = c(1:nrow(pres))
+
+
+# COMPETITION
+
+pres2 = simulation2$presence_matrix
+traits2 = simulation2$traits
+nsteps2 = length(simulation2$network_list)
+Time2 = c(1:nrow(pres))
+
+# foodweb
+
+pres3 = simulation3$presence_matrix
+traits3 = simulation3$traits
+nsteps3 = length(simulation3$network_list)
+Time3 = c(1:nrow(pres))
+
+# neutral
+
+pres4 = simulation4$presence_matrix
+traits4 = simulation4$traits
+nsteps4 = length(simulation4$network_list)
+Time4 = c(1:nrow(pres))
+
+
+
+Smax = 1000
+
+png(filename="../figures/simulation_evaluation/p_simulation_traits_evol.png", width = 1100, height = 500, units = "px")
+
+par(mfrow = c(2,2))
+
+plot(Time[pres[,1]==1],rep(traits[1,1],sum(pres[,1])),xlim = c(1,nsteps),
+ylim = c(0,1), pch = 19, cex = 0.3, xlab = "", ylab = "Niche position", main = "facilitation",
+cex.axis = 2.25, cex.lab = 2.5,cex.main = 2.5 )
+for(i in 1:Smax) points(Time[pres[,i]==1],rep(traits[i,1],sum(pres[,i])),cex = 0.3,pch = 19)
+
+
+plot(Time2[pres2[,1]==1],rep(traits2[1,1],sum(pres2[,1])),xlim = c(1,nsteps2),
+ylim = c(0,1), pch = 19, cex = 0.3, xlab = "", ylab = "", main = "competition",
+cex.axis = 2.25, cex.lab = 2.5,cex.main = 2.5 )
+for(i in 1:Smax) points(Time2[pres2[,i]==1],rep(traits2[i,1],sum(pres2[,i])),cex = 0.3,pch = 19)
+
+
+plot(Time3[pres3[,1]==1],rep(traits3[1,1],sum(pres3[,1])),xlim = c(1,nsteps3),
+ylim = c(0,1), pch = 19, cex = 0.3, xlab = "Time", ylab = "Niche position", main = "competition",
+cex.axis = 2.25, cex.lab = 2.5, cex.main = 2.5 )
+for(i in 1:Smax) points(Time3[pres3[,i]==1],rep(traits3[i,1],sum(pres3[,i])),cex = 0.3,pch = 19)
+
+
+plot(Time4[pres4[,1]==1],rep(traits4[1,1],sum(pres4[,1])),xlim = c(1,nsteps4),
+ylim = c(0,1), pch = 19, cex = 0.3, xlab = "Time", ylab = "", main = "neutral",
+cex.axis = 2.25, cex.lab = 2.5,cex.main = 2.5 )
+for(i in 1:Smax) points(Time4[pres4[,i]==1],rep(traits4[i,1],sum(pres4[,i])),cex = 0.3,pch = 19)
+
+
+dev.off()
+
+```
+
+
+# Degree distribution - Simulation
+
+```{r}
+
+
+```

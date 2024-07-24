@@ -1,0 +1,171 @@
+---
+title: "Obtain phylogenetic and interaction distances and compute phylogenetic signal - N simulations"
+description: this script runs all steps from the script compute_phylosignal_1simularion.Rmd for each simulation results that we saved with the simulation_(interaction name).Rmd scripts and plots the phylogenetic signal over time for n simulations.
+---
+
+
+
+## ADD PLOT WITH ALL SPP RICHNESS curves
+
+
+
+```{r}
+source(here::here("code/functions/functions_compute_phylosignal_nsim.R"))
+#source("functions/functions_phylosignal_nsimulations_lowdim.R")
+#source("functions/functions_phylosignal_nsimulations_&niche.R")
+source("functions/functions_phylosignal.R")
+library(ape)
+#library(apTreeshape)
+library(aricode)
+library(igraph)
+library(ggplot2)
+library(vegan)
+library(ade4)
+library(dplyr)
+```
+
+
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
+```
+
+
+
+
+### get paths simulations results
+
+
+```{r}
+
+list_res_fac <- readRDS(here::here("output/simulations/facilitation/list_res_fac_2sim.rds"))
+list_res_comp <- readRDS(here::here("output/simulations/competition/list_res_comp_2sim.rds"))
+list_res_fw <- readRDS(here::here("output/simulations/foodweb/list_results_fw_10sim.rds"))
+#list_res_faccomp_neutral <- readRDS(here::here("output/simulations/foodweb/list_results_facomp_neutral_10sim.rds"))
+#list_res_fw_neutral <- readRDS(here::here("output/simulations/foodweb/list_results_fw_neutral_10sim.rds"))
+
+```
+
+
+
+```{r}
+list_res_fac <- list_res_fac[-1]
+list_res_comp <- list_res_comp[-1]
+
+df_phylosign_nsim_fac <- compute_df_phylosign_nsim(list_results_nsim = list_res_fac, Smax = 1000, int = "facilitation")
+df_phylosign_nsim_comp <- compute_df_phylosign_nsim(list_results_nsim = list_res_comp, Smax = 1000, int = "competition")
+df_phylosign_nsim_fw <- compute_df_phylosign_nsim(list_results_nsim = list_res_fw[[1]], Smax = 1000, int = "foodweb") # important to write it as "foodweb"
+
+# neutral
+
+df_phylosign_nsim_faccomp_neutral <- compute_df_phylosign_nsim(list_results_nsim = list_res_comp, Smax = 1000, int = "facilitation & competition")
+df_phylosign_nsim_fw_neutral <- compute_df_phylosign_nsim(list_results_nsim = list_res_comp, Smax = 1000, int = "foodweb")
+
+```
+
+
+Save results
+
+```{r}
+saveRDS(df_phylosign_nsim_fac, here::here("output/phylosignal/facilitation/df_phylosign_nsim_fac.rds"))
+saveRDS(df_phylosign_nsim_comp, here::here("output/phylosignal/facilitation/df_phylosign_nsim_comp.rds"))
+```
+
+
+
+
+
+# Plot results
+
+
+
+
+facilitation
+
+```{r}
+
+phylosignal_plot_fac_indiv <- ggplot(df_phylosign_nsim_fac, aes(x = nspp, y = phylosign_cor_mean, group = sim)) +
+ # geom_point(alpha = 0.5) + # Adding points for each simulation
+  geom_smooth(method = "gam", se = TRUE, color = "blue") + # Adding GAM trend line with confidence interval
+  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Adding vertical dashed line
+  labs(x = "Species richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+
+# Calculate mean and confidence intervals for each nspp
+summary_df <- df_phylosign_nsim_fac %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+phylosignal_plot_fac <- ggplot(summary_df, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
+  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+```
+
+
+competition
+
+```{r}
+phylosignal_plot_comp_indiv <- ggplot(df_phylosign_nsim_comp, aes(x = nspp, y = phylosign_cor_mean, group = sim)) +
+ # geom_point(alpha = 0.5) + # Adding points for each simulation
+  geom_smooth(method = "gam", se = TRUE, color = "blue") + # Adding GAM trend line with confidence interval
+  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Adding vertical dashed line
+  labs(x = "Species richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+
+# Calculate mean and confidence intervals for each nspp
+summary_df <- df_phylosign_nsim_comp %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+phylosignal_plot_comp <- ggplot(summary_df, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
+  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+```
+
+
+
+
+
+
+
+

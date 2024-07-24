@@ -1,0 +1,274 @@
+---
+title: "Testing parameters for facilitation and competition networks"
+---
+
+
+Script to try parameters out and explore the output.
+
+I haven't found empirical network data for facilitation and competition so far. The evaluation I am doing consist mainly in exploring the species richness curve (expecting a progressive increase with time and then an estabilization), degree distribution (expecting diversity of values), and some model objects (trait evolution, speciation/extinction events).
+
+
+
+
+
+
+```{r}
+library(EnvStats)
+library(foreach)
+library(ggplot2)
+library(igraph)
+library(ggpubr)
+library(reshape2)
+library(tidyr)
+library(dplyr)
+
+```
+
+
+For plotting:
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
+
+
+plot_spp_richness <- function(steps, pres_mat, title) {
+  
+  timesteps <- 1:steps
+  n_spp_time <- c()
+  
+  for (i in 1:nrow(pres_mat)) {
+  
+  n_spp_time[i] <- length(which(pres_mat[i,] == 1))
+  
+  }
+  
+  df_spprich_time <- data.frame(timesteps,n_spp_time)
+  
+  p.spp <- ggplot(df_spprich_time, aes(x=timesteps, y = n_spp_time)) +
+  geom_line(color="black", linetype="twodash") +
+  theme_classic()+
+  my.theme+
+  xlab("timesteps")+
+  ylab("N species")+
+    ggtitle(title)
+  
+  return(p.spp)
+}
+
+```
+
+
+
+```{r}
+source("../functions/functions_simulation_fac_comp.R")
+source("../functions/function_plot_mean_div.R")
+```
+
+
+
+```{r}
+
+pars = list()
+
+# General parameters
+#pars$int = 0 # 0 for competition, 1 for facilitation, 2 for predation
+pars$Smax = 1000 # Maximal number of species in the system
+
+# Related to interaction range trait
+pars$av_r = 0.1 # Half range of the niche of the first species
+pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
+
+pars$u_max = 0.15 # Speciation probability
+
+# Extinction probability, negative interactions communities
+pars$a_eneg = 0.025 # Shape of the exponential decay of the negative extinction - interaction relationship
+pars$e_0neg = 0.5 # Asymptotic extinction probability with infinite negative interactions
+pars$e_1neg = 1  # Extinction probability with absence of interactions
+
+# Extinction probability, positive interactions communities
+pars$a_epos = 1.2  # Shape of the exponential decay of the positive extinction - interaction relationship
+pars$e_0pos = 0.1 #0.075 # Asymptotic extinction probability with infinite positive interactions
+pars$e_1pos = 4.8 #5.19 # 1 - pars$e_0pos
+
+# Establishment probability, negative interactions communities
+pars$a_uneg = 0.075 # Shape of the exponential decay of the colonization - interaction relationship
+pars$u_0neg = 0.075 # Asymptotic establishment probability with infinite competition interactions
+pars$u_1neg = 2 # Establishment probability with absence of competition interaction
+
+# Establishment probability, positive interactions communities
+pars$a_u = 0.8 #0.45 # Shape of the exponential decay of the colonization - interaction relationship
+pars$u_0 = 1 # Asymptotic establishment probability with infinite facilitation interactions
+pars$u_1 = -0.9 #-1 # Establishment probability with absence of facilitation interactions
+pars$d = 0.5 # Decrease speed of the establishment probability
+
+# Extinction and establishment probabilitie for both, positive and negative interactions communities
+pars$Bspe = 4 # Constant minimal number of interaction per species (extablishment prob)
+pars$Bext = 4 # Constant minimal number of interaction per species (extinction prob)
+pars$I_max = 60 # Maximal number of interactioning species
+
+
+pars$beta_n = 1 # parameter of the beta distribution
+
+
+# STRENGTH OF NEUTRAL-DRIVEN EVOLUTION
+
+pars$SN = 1
+
+
+# PROBABILITY OF ESTABLISHMENT
+# strength of selection-driven selection is 1 - SN
+pars$estab_prob_neutral = 0.5 
+
+# PROBABILITY OF EXTINCTION
+
+pars$ext_prob_neutral = 0.03 # neutral probability of extinction
+
+```
+
+
+
+
+tests
+
+
+```{r}
+# Extinction probability parameters
+pars$e_0pos <- 0.1  # Reduce the asymptotic extinction probability with infinite positive interactions
+pars$e_1pos <- 4.8  # Slightly decrease the extinction probability in the absence of positive interactions
+pars$a_epos <- 1.2  # Decrease the rate at which extinction probability decreases with more positive interactions
+
+# Establishment probability parameters
+pars$u_0 <- 1.0  # Increase the asymptotic establishment probability with infinite positive interactions
+pars$u_1 <- -0.9 #-0.9  # Increase the establishment probability in the absence of positive interactions
+pars$a_u <- 0.8  # Keep the rate at which establishment probability decreases with more positive interactions
+
+
+```
+
+
+
+# set parameters simulation
+
+```{r}
+nsteps = 250 # Set the maximum timestep per simulation
+nsim = 2 # Set the number of simulations
+
+# Vector to record number of simulation needed to reach 100 valid simulations
+needed_sim_pos <- c(rep(NA, nsim))
+needed_sim_neg <- c(rep(NA, nsim))
+```
+
+
+# Simulation
+
+
+
+
+```{r}
+# Initialize lists outside the loop
+list_results_fac <- list()
+list_results_comp <- list()
+
+# Loop through interaction types (0 and 1)
+for(int in 0:1) {
+  pars$int <- int
+  
+  if(int == 1) {
+    print("Positive interactions")
+  } else {
+    print("Negative interactions")
+  }
+  
+  successful_sim <- 1  # Initialize count of successful simulations
+  total_nb_sim <- 0    # Initialize total count of simulations
+  seed_list <- integer(0)  # Initialize seed list
+  
+  while(successful_sim <= nsim) {
+    
+    seed <- sample.int(80000, 1)  # Generate a random seed
+    
+    # Check if seed has already been used
+    while(seed %in% seed_list) {
+      seed <- sample.int(80000, 1)
+    }
+    
+    seed_list <- c(seed_list, seed)  # Add seed to the list
+    
+    # Run simulation
+    simulation <- sim_model_bif_fc(seed = seed, pars, nsteps = nsteps)
+    
+    total_nb_sim <- total_nb_sim + 1  # Increment total simulations
+    
+    # Check if simulation has enough species at timestep 150
+    success <- sum(simulation$pres[150, ])
+    
+    if(success >= 20) {
+      # Record results from the simulation
+      res_sim <- list(simulation_number = paste0("simulation", successful_sim),
+                      seed = seed,
+                      parameters = pars,
+                      presence_matrix = simulation$pres,
+                      traits_df = simulation$traits,
+                      parentage_matrix = simulation$anc,
+                      extinction_matrix = simulation$extinct,
+                      network_list = simulation$L_list,
+                      anc_dist_table = simulation$dist_anc,
+                      list_anc_dist = simulation$list_dist_anc)
+      
+      if(int == 1) {
+        list_results_fac[[successful_sim]] <- res_sim
+      } else if(int == 0) {
+        list_results_comp[[successful_sim]] <- res_sim
+      }
+      
+      print(paste("Simulation", successful_sim, "of", nsim, "successful out of", total_nb_sim))
+      successful_sim <- successful_sim + 1  # Increment successful simulation count
+    }
+  }
+}
+
+```
+
+
+
+## Speciation and extinction events - mean among simulations
+
+
+```{r}
+mean_div_curves_fac <- compute_div_curves_from_list_res(list_results_fac)[[1]]
+mean_div_curves_comp <- compute_div_curves_from_list_res(list_results_comp)[[1]]
+
+ggarrange(mean_div_curves_fac + labs(title ="facilitation"),
+           mean_div_curves_comp + ylab(NULL) + labs(title = "competition"),
+           nrow = 1,
+           ncol = 2, 
+          common.legend = TRUE)
+
+```
+
+
+
+## Inspection of individual simulation
+
+
+```{r}
+
+inspect_simulation_fac_comp(simulation_data = list_results_fac[[2]], interaction_type = "facilitation")
+
+inspect_simulation_fac_comp(simulation_data = list_results_comp[[2]], interaction_type = "competition")
+
+
+```
+
+
+
+
+
+

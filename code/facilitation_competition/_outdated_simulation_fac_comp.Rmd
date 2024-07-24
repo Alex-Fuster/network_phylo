@@ -1,0 +1,226 @@
+---
+title: "Simulation for facilitation and competition networks"
+description: this script runs n simulations and save the results for facilitation and competition
+---
+
+
+
+```{r}
+#library(EnvStats)
+#library(foreach)
+
+source("../functions/functions_simulation_fac_comp.R")
+
+```
+
+### set general parameters
+
+
+```{r}
+pars = list()
+
+# General parameters
+#pars$int = 0 # 0 for competition, 1 for facilitation, 2 for predation
+pars$Smax = 2000 # Maximal number of species in the system
+
+# Related to interaction range trait
+pars$av_r = 0.1 # Half range of the niche of the first species
+pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
+
+pars$u_max = 0.15 # Speciation probability
+
+# Extinction probability, negative interactions communities
+pars$a_eneg = 0.025 # Shape of the exponential decay of the negative extinction - interaction relationship
+pars$e_0neg = 0.5 # Asymptotic extinction probability with infinite negative interactions
+pars$e_1neg = 1  # Extinction probability with absence of interactions
+
+# Extinction probability, positive interactions communities
+pars$a_epos = 1.2  # Shape of the exponential decay of the positive extinction - interaction relationship
+pars$e_0pos = 0.075 # Asymptotic extinction probability with infinite positive interactions
+pars$e_1pos = 5.19 # 1 - pars$e_0pos
+
+# Establishment probability, negative interactions communities
+pars$a_uneg = 0.075 # Shape of the exponential decay of the colonization - interaction relationship
+pars$u_0neg = 0.075 # Asymptotic establishment probability with infinite competition interactions
+pars$u_1neg = 2 # Establishment probability with absence of competition interaction
+
+# Establishment probability, positive interactions communities
+pars$a_u = 0.45 # Shape of the exponential decay of the colonization - interaction relationship
+pars$u_0 = 1 # Asymptotic establishment probability with infinite facilitation interactions
+pars$u_1 = -1 # Establishment probability with absence of facilitation interactions
+pars$d = 0.5 # Decrease speed of the establishment probability
+
+# Extinction and establishment probabilitie for both, positive and negative interactions communities
+pars$Bspe = 4 # Constant minimal number of interaction per species (extablishment prob)
+pars$Bext = 4 # Constant minimal number of interaction per species (extinction prob)
+pars$I_max = 50 # Maximal number of interactioning species
+
+
+pars$beta_n = 1 # parameter of the beta distribution
+
+
+# STRENGTH OF NEUTRAL-DRIVEN EVOLUTION
+
+pars$SN = 0 
+
+
+# PROBABILITY OF ESTABLISHMENT
+# strength of selection-driven selection is 1 - SN
+pars$estab_prob_neutral = 0 
+
+# PROBABILITY OF EXTINCTION
+
+pars$ext_prob_neutral = 0 # neutral probability of extinction
+
+```
+
+
+# set parameters simulation
+
+```{r}
+nsteps = 350 # Set the maximum timestep per simulation
+nsim = 10 # Set the number of simulations
+
+# Vector to record number of simulation needed to reach 100 valid simulations
+needed_sim_pos <- c(rep(NA, nsim))
+needed_sim_neg <- c(rep(NA, nsim))
+```
+
+
+### Seeds record matrix
+
+```{r}
+# List of used seed per simulation batch
+reccorded_seed_pos_list <- list()
+reccorded_seed_neg_list <- list()
+
+seed_list <- NULL # Set an object to record seed that will be used to launch simulations
+
+```
+
+
+
+# Simulation
+
+```{r}
+
+list_res_fac <- list()
+list_res_comp <- list()
+#for(b in 1:10){
+
+	total_nb_sim <- 0
+	b <- 1
+
+	for(int in 0:1){
+		pars$int = int # Define the interaction type: 0 = competition ; 1 = facilitation
+		successful_sim <- 1 # Set the count of simulations
+		list_res <- list() # Set the list to store the results
+
+		if(pars$int == 1){
+			print("Positive interctions")
+		} else {
+			print("Negative interctions")
+		}
+
+		seed_record <- c(rep(NA, nsim)) # Set the vector to record the seed that have been used
+
+		while(successful_sim < nsim+1){
+
+  		seed <- sample.int(80000, 1) # Pick a random number, this number will be the seed for one simulation
+  		print(seed)
+
+			# If a seed have already been tested, pick another one
+			if(length(which(seed_list == seed)) != 0){
+				while(seed %in% seed_list){
+    			seed <- sample.int(80000, 1)
+  			}
+			}
+
+			seed_list <- c(seed_list, seed) # Add the seed
+
+			# SIMULATION ; from the file code/functions/functions_M-C_bifurcation.R
+  		simulation <- sim_model_bif_fc(seed = seed, pars, nsteps = nsteps)  
+  	
+  		#---------------------- stored: pres, traits_mat, anc, extinct, Stotact, L, L_list
+
+			total_nb_sim <- total_nb_sim +1 # Count the total amount of simulations
+
+			# Test if we have enough species at the timestep 150 in the simulation
+  		success <- sum(simulation$pres[150,])
+			#print(paste0("Success = ", success))
+
+  		if(success >= 20){
+				#print("the simulation has more than 19 species at the time step 150")
+    		seed_record[successful_sim] <- seed # Record seed which alows us to have "good" simulation
+    		res_sim <- list(simulation_number = paste0("simulation", successful_sim), 
+    		                seed = seed,
+    		                parameters = pars, 
+    		                presence_matrix = simulation$pres, 
+    		                traits_df = simulation$traits,
+    		                parentage_matrix = simulation$anc,
+    		                extinxction_matrix = simulation$extinct, 
+    		                network_list = simulation$L_list, 
+    		                anc_dist_table = simulation$dist_anc, 
+    		                list_anc_dist = simulation$list_dist_anc,
+    		                speciation_matrix = simulation$speciation_matrix,
+    		                extinction_matrix = simulation$extinction_matrix) # Record results from the simulation
+    		
+
+    		print(paste("simulation ", successful_sim, "sur", nsim))
+    		successful_sim <- successful_sim + 1 # Count the amount of "good" simulations
+    		
+    		
+    		
+    				# Save simulations results data
+		if(pars$int == 1){
+			#path <- paste0("../../data/selection_evolution/facilitation/test/list_res_pos_", successful_sim, ".rds")
+			
+			list_res_fac[[successful_sim]] <- res_sim
+			
+	  	#saveRDS(res_sim, file = path) #Change if interaction tyep = 0 (competition)
+			
+		} else if(pars$int == 0){
+		#	path <- paste0("../../data/selection_evolution/competition/test/list_res_neg_", successful_sim, ".rds")
+			 list_res_comp[[successful_sim]] <- res_sim
+	  #	saveRDS(res_sim, file = path) #Change if interaction tyep = 0 (competition)
+		}
+    		
+    		
+    		rm(res_sim)
+    		
+    		
+    		
+  		}
+		}
+
+		
+		## Record the amount of simulation needed and their identity
+		if(pars$int == 1){
+			reccorded_seed_pos_list <- list_append(reccorded_seed_pos_list, seed_record)
+			needed_sim_pos[b] <- total_nb_sim
+		} else {
+			reccorded_seed_neg_list <- list_append(reccorded_seed_neg_list, seed_record)
+			needed_sim_neg[b] <- total_nb_sim
+		}
+
+
+
+	}
+
+	#print(paste("batch ", b, "sur 10"))
+#}
+```
+
+### save data
+
+```{r}
+
+saveRDS(list_res_fac, "list_res_fac_10sim.rds")
+saveRDS(list_res_comp, "list_res_comp_10sim.rds")
+
+#save(reccorded_seed_pos_list, file = "../AF_Data/selection_evolution/reccorded_seed_pos_list.Rdata")
+#save(reccorded_seed_neg_list, file = "../AF_Data/selection_evolution/reccorded_seed_neg_list.Rdata")
+#save(needed_sim_pos, file = "../Data/selection_evolution/needed_sim_pos.Rdata")
+#save(needed_sim_neg, file = "../Data/selection_evolution/needed_sim_neg.Rdata")
+
+```

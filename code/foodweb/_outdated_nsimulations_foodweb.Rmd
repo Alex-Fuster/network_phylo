@@ -1,0 +1,293 @@
+---
+title: "Simulation communtiy evolution for FOODWEB"
+output: html_notebook
+---
+
+
+```{r}
+
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(ggpubr)
+library(igraph)
+library(EnvStats)
+
+
+source(here::here("code/functions/functions_simulation_fw_normdist.R"))
+source(here::here("code/functions/functions_simulation_inspection.R"))
+source("../functions/functions_metrics_networks.R")
+source("../functions/function_plot_mean_div.R")
+
+```
+
+
+parameters for plotting
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
+
+```
+
+
+
+# set general parameters
+
+
+```{r}
+
+pars = list()
+
+
+
+pars$competition_coefficient = 0.025
+pars$Sbasal = 25 # number of basal species
+pars$Smax = 1000 # Maximal number of species allowed
+pars$Bspe = 4 # Basal species impact on the speciation probality
+pars$Bext = 4 # Basal species impact on extinction probability
+pars$av_r = 0.185 # 0.2 range of the niche
+pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
+#pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
+
+# PROBABILITY OF MUTATION
+
+pars$u_max = 0.23 #0.15 # mutation probability (0.075, )
+pars$d = 0.5 # Decrease speed of the establishment probability
+pars$I_max = 60 # Maximal number of interactioning species
+pars$beta_n =  1 # parameter of the beta distribution 
+
+# STRENGTH OF NEUTRAL-DRIVEN EVOLUTION
+
+pars$SN = 0 # strength for neutral-driven evolution
+
+# PROBABILITY OF ESTABLISHMENT
+
+# strength of selection-driven selection is 1 - SN
+pars$estab_prob_neutral = rep(0, pars$Smax) # neutral probability of establishment
+
+# Facilitation & Foodweb
+
+pars$u_0pos = 1  
+pars$u_1pos = -1 
+pars$a_upos = 0.45 
+
+# PROBABILITY OF EXTINCTION
+
+pars$ext_prob_neutral = 0 # neutral probability of extinction
+
+# Competition
+
+pars$e_0neg = 0.1 #0.15 # Asymptotic extinction probability with infinite negative interactions
+pars$a_eneg = 0.025 # Shape of the exponential decay of the negative extinction - interaction relationship
+pars$e_1neg = -pars$e_0neg  # Extinction probability with absence of interactions
+
+# Facilitation & Foodweb
+
+pars$e_0pos = 0.075 
+pars$e_1pos = 5.19 
+pars$a_epos = 1.2 
+
+
+#saveRDS(pars, "pars_fw_12june.rds")
+
+#pars <- readRDS("pars_work_12june.rds")
+
+```
+
+
+# parameters simulation
+
+```{r}
+nsteps =  250
+n_sims = 2
+
+```
+
+
+
+
+# Simulation
+
+```{r}
+
+pars$int = 2
+
+list_results <- list()
+#list_adj_matrix.f <- list()
+
+for (i in 1:n_sims) {
+  
+  #seed <- set.seed(50)
+  seed <- sample.int(80000, 1)
+  
+  simulation <- sim_model_bif_fw(seed = seed, 
+                          pars, 
+                          nsteps = nsteps)
+  
+  res <- list(
+    seed = seed,
+    parameters = pars, 
+    presence_matrix = simulation$pres, 
+    traits_df = simulation$traits,
+    parentage_matrix = simulation$anc,
+    extinxction_matrix = simulation$extinct, 
+    network_list = simulation$L_list,
+    anc_dist_table = simulation$dist_anc, 
+    list_anc_dist = simulation$list_dist_anc
+  ) # Record results from the simulation
+  
+  list_results[[i]] <- res
+  
+  
+  # list_adj_matrix.f[[i]] <- get_adjancency_from_simulation.fw_single(list_networks = res$network_list,
+  #    nbasals = pars$Sbasal,
+  #    pres_mat = res$presence_matrix)
+  
+}
+
+#saveRDS(list_results, "list_results_fw_10sim.rds")
+
+
+############## previous code ##############
+
+# successful_sim <- 1
+# while(successful_sim < n_sims+1){
+#   seed <- sample.int(80000, 1)
+#   results <- sim_model_bif(seed = seed, pars, nsteps = nsteps)
+#   # Test if we have enough species at the timestep 150 in the simulation
+#   		success <- sum(results$pres[150,])
+#   		if(success >= 20){
+#   names(results)[1] <- "presence_matrix"
+#   names(results)[7] <- "network_list"
+#   names(results)[9] <- "list_anc_dist"
+#     path <- paste0("../../data/selection_evolution/foodweb/list_res_fw_", successful_sim, ".rds")
+# 	  saveRDS(results, file = path) 
+# 	  print(paste("simulation ", successful_sim, "sur", n_sims))
+# 	  successful_sim <- successful_sim + 1
+# 	  rm(results)
+# }
+# }
+
+
+```
+
+
+Read previously generated results
+
+```{r}
+list_results <- readRDS(here::here("output/simulations/foodweb/list_results_fw_10sim.rds"))
+```
+
+
+
+
+# Inspect simulations
+
+
+## Speciation and extinction events - mean among simulations
+
+
+```{r}
+compute_div_curves_from_list_res(list_results)[[1]]
+```
+
+
+## Multiple inspection plots for each simulation
+
+```{r}
+inspect_simulation_fw(simulation_data = list_results[[1]])
+```
+
+
+
+# Comparison with empirical foodwebs
+
+
+Metrics of empirical foodwebs:
+
+empirical networks data was obtained from the ECOWeB 1.1 database:
+https://digitalcommons.rockefeller.edu/cohen_joel_laboratory/1/
+
+```{r}
+net_metr_empirical <- readRDS(here::here("data/net_metrics_empirical.rds"))
+
+net_metr_empirical$id <- NULL
+
+# eliminate one problematic foodweb:
+
+net_metr_empirical <- net_metr_empirical[-13,]
+
+# reshape dataframe:
+
+df_metrics_emp <- reshape_df_net.metrics(df_metrics = net_metr_empirical,
+                       interaction = "empirical")
+```
+
+
+
+
+```{r}
+list_adj_matrix.f <- list()
+
+for (i in 1:length(list_results)) {
+  
+  
+  res <- list_results[[i]]
+  
+  list_adj_matrix.f[[i]] <- get_adjancency_from_simulation.fw_single(list_networks = list_results[[i]]$network_list,
+                                           nbasals = pars$Sbasal,
+                                           pres_mat = res$presence_matrix)
+  
+}
+
+net_metr_sim <- get_network_measures_from_adjacency(list_adj_matrix = list_adj_matrix.f)
+
+
+df_metrics_fw <- reshape_df_net.metrics(df_metrics = net_metr_sim,
+                       interaction = "foodweb")
+
+df_metrics <- merge(df_metrics_fw,
+                    df_metrics_emp,
+                    by = "metric")
+
+
+# plot the results
+
+p_S <- plot_metric_foodweb(df = df_metrics, metric = "S", y_axis = "N species")
+p_link.dens <- plot_metric_foodweb(df = df_metrics, metric = "Link_density", y_axis = "L/S")
+p_C <- plot_metric_foodweb(df = df_metrics, metric = "C", y_axis = "Connectance")
+p_top <- plot_metric_foodweb(df = df_metrics, metric = "perc_tops", y_axis = "% top species")
+p_int <- plot_metric_foodweb(df = df_metrics, metric = "perc_int", y_axis = "% intermediate species")
+p_basal <- plot_metric_foodweb(df = df_metrics, metric = "perc_basals", y_axis = "% basal species")
+p_cannibals <- plot_metric_foodweb(df = df_metrics, metric = "perc_cannibals", y_axis = "% cannibal species")
+p_omnivory <- plot_metric_foodweb(df = df_metrics, metric = "omnivory", y_axis = "omnivory")
+p_sd_gen <- plot_metric_foodweb(df = df_metrics, metric = "sd_gen", y_axis = "SD generality")
+p_sd_vul <- plot_metric_foodweb(df = df_metrics, metric = "sd_vul", y_axis = "SD vulnerability")
+
+plot_metrics_comparison_sim_emp <- ggarrange(
+  p_S,
+  p_link.dens,
+  p_C,
+  p_top,
+  p_int,
+  p_basal,
+  p_cannibals,
+  p_omnivory,
+  p_sd_gen,
+  p_sd_vul,
+  
+  nrow = 5,
+  ncol = 2
+  
+)
+
+plot_metrics_comparison_sim_emp
+```
+

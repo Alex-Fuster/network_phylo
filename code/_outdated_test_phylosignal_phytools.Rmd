@@ -1,0 +1,300 @@
+---
+title: "R Notebook"
+---
+
+```{r}
+library(phytools)
+
+source("functions/functions_phylosignal.R")
+library(ape)
+library(apTreeshape)
+library(aricode)
+library(igraph)
+library(ggplot2)
+library("vegan")
+library(ggpubr)
+library(ade4)
+```
+
+
+Example Phytools
+
+```{r}
+## load data from Garland et al. (1992)
+data(mammal.tree)
+data(mammal.data)
+## extract characters of interest
+ln.bodyMass<-log(setNames(mammal.data$bodyMass,
+rownames(mammal.data)))
+ln.homeRange<-log(setNames(mammal.data$homeRange,
+rownames(mammal.data)))
+
+
+###############################
+## compute phylogenetic signal K
+###############################
+
+K.bodyMass<-phylosig(mammal.tree,ln.bodyMass,
+test=TRUE)
+print(K.bodyMass)
+plot(K.bodyMass)
+K.homeRange<-phylosig(mammal.tree,ln.homeRange,
+test=TRUE)
+print(K.homeRange)
+plot(K.homeRange)
+
+################################
+## compute phylogenetic signal lambda
+################################
+
+lambda.bodyMass<-phylosig(mammal.tree,ln.bodyMass,
+method="lambda",test=TRUE)
+print(lambda.bodyMass)
+plot(lambda.bodyMass)
+lambda.homeRange<-phylosig(mammal.tree,ln.homeRange,
+method="lambda",test=TRUE)
+print(lambda.homeRange)
+plot(lambda.homeRange)
+
+```
+
+
+
+### Load simulation data
+
+```{r}
+Smax = 1000
+```
+
+
+FACILITATION
+
+```{r}
+
+list_res <- readRDS("../Data/selection_evolution/facilitation/test/list_res_pos_2.rds")
+
+
+# count number of timesteps where there are spp
+
+list_simulation1 <- list_res
+
+n_steps <- length(list_simulation1$network_list)
+
+
+```
+
+
+#### Crop presence matrix to nsteps
+
+The presence_matrix (rows = timesteps, cols = species, entries = 1,0) has extra timesteps in case the simulation is longer (max = 350). Crop the presence matrix to the number of timesteps in the simulation:
+
+```{r}
+
+presence_matrix <- list_simulation1$presence_matrix
+
+presence_matrix <- presence_matrix[1:n_steps,]
+
+```
+
+
+#### Identify timesteps where phylogenetic distances cant be calculated
+
+Im going to discard those with 1 spp
+
+```{r}
+
+non.valid_timesteps_phylo_distance <- c(which(rowSums(presence_matrix) < 2))
+
+# until what timestep need to discard:
+
+final.discarded_timestep <- non.valid_timesteps_phylo_distance[length(non.valid_timesteps_phylo_distance)]
+
+print(paste("timesteps 1 to", final.discarded_timestep, "will be discarted as they have less than 3 spp"))
+
+
+```
+
+
+#### homogenize elements to start from valid timesteps
+
+Discard those timesteps with less than 2 spp in both the list_anc_dist table (ancestry table) and the network_list:
+
+```{r}
+
+# ancestry-distances table
+
+list_anc_dist <- list_simulation1$list_anc_dist[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist)]
+
+
+
+# Network list
+
+network_list <- list_simulation1$network_list[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist)]
+
+
+
+
+
+
+
+## ------------------- Check
+
+if (length(which(is.null(list_simulation1$network_list))) > 0) {
+  
+  print("check - null network somewhere")
+} else {
+  print("all good - no null networks")
+}
+
+
+if(length(list_anc_dist) == length(network_list)){
+  
+  print("all good - distance-ancestry table and network list have the same length")
+} else {
+  
+  print("PROBLEM")
+}
+
+
+```
+
+
+
+#### Convert spp names from numbers to letters
+
+
+Species names in both the ancestry table and the networks are numbers. Convert it into letters with the function **change_sppnames_letters_ancdist.table()** for the ancestry table, and **set_sppNames_numbers()** (because matrices lack colnames and rownames) and **convert_sppnames_toletters()** for the network list:
+
+```{r}
+
+## ancestry-distances table
+
+list_anc_dist_letters <- lapply(list_anc_dist, change_sppnames_letters_ancdist.table)
+
+
+## Network list 
+
+
+list_networks_sppnames_numbers <- lapply(network_list, set_sppNames_numbers)
+
+#### convert numbers to letters
+
+list_networks_sppnames_letters <- lapply(list_networks_sppnames_numbers, convert_sppnames_toletters)
+
+
+
+
+
+
+## ------------------- Check
+
+
+if(length(list_anc_dist_letters) == length(list_networks_sppnames_letters)){
+  
+  print("all good - distance-ancestry table with letters and network list with leters have the same length")
+} else {
+  
+  print("PROBLEM")
+}
+
+
+```
+
+
+#### convert spp names to letters in presence matrix
+
+
+
+```{r}
+
+# Set the same spp names for the presence_matrix than for the interacion matrices
+
+
+colnames(presence_matrix) <- seq(1:Smax)
+
+colnames(presence_matrix) <- chartr("0123456789", "ABCDEFGHIJ", colnames(presence_matrix))
+
+
+
+## ------------------- Check
+
+if(length(which(colnames(presence_matrix) != colnames(list_networks_sppnames_letters[[1]]))) == 0){
+  
+  print("all good - spp names in presence_matrix correspond to spp names in network list")
+  
+} else {
+  
+  print("PROBLEM")
+} 
+
+
+
+
+
+# Discard same timesteps (rows) than the discarted phylogenetic distance matrices
+
+presence_matrix <- presence_matrix[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist),]
+
+
+
+
+## ------------------- Check
+
+if(nrow(presence_matrix) == length(list_networks_sppnames_letters) & 
+   nrow(presence_matrix) == length(list_dist.phylo)){
+  
+  print("all good - presence matrix, list phylo dist and list interaction networks have the same n_steps")
+  
+} else {
+  
+  print("PROBLEM")
+}
+
+
+
+
+```
+
+
+
+
+## compute trees
+
+```{r}
+list_newick <- list()
+list_trees <- list()
+list_newick_tails <- list()
+list_dist.phylo <- list()
+
+
+
+for (i in 1:length(list_anc_dist_letters)) {
+  
+  
+  #print(sprintf("step %s", i))
+  
+  list_newick[[i]] <- ToPhylo(list_anc_dist_letters[[i]])
+  
+  list_newick_tails[[i]] <- paste(list_newick[[i]], "root")
+  
+  list_trees[[i]] <- read.tree(text = sub("A root",";",list_newick_tails[[i]]))
+  
+  list_dist.phylo[[i]] <- cophenetic.phylo(list_trees[[i]])
+  
+
+}
+
+
+list_anc_dist_letters[[1]]
+plot(list_trees[[20]])
+
+length(list_trees[[20]]$tip.label) == length(which(presence_matrix[20,] == 1))
+
+
+
+```
+
+
+
+
+

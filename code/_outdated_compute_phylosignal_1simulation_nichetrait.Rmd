@@ -1,0 +1,703 @@
+---
+title: "Compute phylosignal with niche values"
+output: html_notebook
+---
+
+
+
+
+```{r}
+
+source("functions/functions_phylosignal.R")
+library(ape)
+library(apTreeshape)
+library(aricode)
+library(igraph)
+library(ggplot2)
+library("vegan")
+library(ggpubr)
+library(ade4)
+```
+
+
+
+
+### Load simulation data
+
+
+
+COMPETITION
+
+```{r}
+
+list_res <- readRDS("../Data/selection_evolution/competition/list_res_neg_2.rds")
+
+
+# count number of timesteps where there are spp
+
+list_simulation1 <- list_res
+
+n_steps <- length(list_simulation1$network_list)
+
+```
+
+
+FACILITATION
+
+```{r}
+
+list_res <- readRDS("../Data/selection_evolution/facilitation/list_res_pos_2.rds")
+
+
+# count number of timesteps where there are spp
+
+list_simulation1 <- list_res
+
+n_steps <- length(list_simulation1$network_list)
+
+
+```
+
+
+FOODWEB
+
+```{r}
+
+list_res <- readRDS("../data/selection_evolution/foodweb/list_res_fw_2.rds")
+
+
+list_simulation1 <- list_res
+
+
+# count number of timesteps where there are spp
+
+n_steps <- length(list_simulation1$network_list)
+
+
+
+```
+
+NEUTRAL
+
+```{r}
+
+list_res <- readRDS("../data/neutral/list_res_n_1.rds")
+
+list_simulation1 <- list_res
+
+
+# count number of timesteps where there were spp
+
+n_steps <- length(list_simulation1$network_list)
+
+```
+
+
+
+
+#### Crop presence matrix to nsteps
+
+The presence_matrix (rows = timesteps, cols = species, entries = 1,0) has extra timesteps in case the simulation is longer (max = 350). Crop the presence matrix to the number of timesteps in the simulation:
+
+```{r}
+
+presence_matrix <- list_simulation1$presence_matrix
+
+presence_matrix <- presence_matrix[1:n_steps,]
+
+```
+
+
+
+#### Identify timesteps where phylogenetic distances cant be calculated
+
+It requires at leas 3 species to compute the phylogenetic distances.
+Check the timestep from which we can make the calculations by looking at the presence_matrix and see which matrices (or timesteps) have less than 3 spp:
+
+```{r}
+
+non.valid_timesteps_phylo_distance <- c(which(rowSums(presence_matrix) < 3))
+
+# until what timestep need to discard:
+
+final.discarded_timestep <- non.valid_timesteps_phylo_distance[length(non.valid_timesteps_phylo_distance)]
+
+print(paste("timesteps 1 to", final.discarded_timestep, "will be discarted as they have less than 3 spp"))
+
+
+```
+
+
+### obtain list of traits per timestep
+
+```{r}
+
+niche_vec <- list_simulation1$traits[,1]
+
+# names niche vector
+
+names(niche_vec) <- seq(1:1000)
+names(niche_vec) <- chartr("0123456789", "ABCDEFGHIJ", names(niche_vec))
+
+
+# names presence matrix
+colnames(presence_matrix) <- seq(1:1000)
+
+colnames(presence_matrix) <- chartr("0123456789", "ABCDEFGHIJ", colnames(presence_matrix))
+
+list_niche_vec <- list()
+
+for (i in 1:nrow(presence_matrix)) {
+  
+  list_niche_vec[[i]] <- niche_vec[names(which(presence_matrix[i,] == 1))]
+  
+}
+
+
+```
+
+
+#### homogenize elements to start from valid timesteps
+
+Discard those timesteps with less than 3 spp in both the list_anc_dist table (ancestry table) and the network_list:
+
+```{r}
+
+# ancestry-distances table
+
+list_anc_dist <- list_simulation1$list_anc_dist[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist)]
+
+
+
+# Network list
+
+network_list <- list_simulation1$network_list[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist)]
+
+
+# vector niche
+
+list_niche_vec <- list_niche_vec[(final.discarded_timestep+1):length(list_niche_vec)]
+
+
+
+
+
+
+## ------------------- Check
+
+if (length(which(is.null(list_simulation1$network_list))) > 0) {
+  
+  print("check - null network somewhere")
+} else {
+  print("all good - no null networks")
+}
+
+
+if(length(list_anc_dist) == length(network_list)){
+  
+  print("all good - distance-ancestry table and network list have the same length")
+} else {
+  
+  print("PROBLEM")
+}
+
+
+if(length(list_anc_dist) == length(list_niche_vec)){
+  
+  print("all good - distance-ancestry table and list niche values have the same length")
+} else {
+  
+  print("PROBLEM")
+}
+
+```
+
+#### Eliminate basal species (for foodweb and foodweb neutral)
+
+```{r}
+
+# discard basals in interaction matrixes
+
+Sbasals <- length(list_simulation1$basal)
+
+network_list <- lapply(network_list, eliminate_basals, nbasals = Sbasals)
+
+
+```
+
+
+#### Convert spp names from numbers to letters
+
+
+Species names in both the ancestry table and the networks are numbers. Convert it into letters with the function **change_sppnames_letters_ancdist.table()** for the ancestry table, and **set_sppNames_numbers()** (because matrices lack colnames and rownames) and **convert_sppnames_toletters()** for the network list:
+
+```{r}
+
+## ancestry-distances table
+
+list_anc_dist_letters <- lapply(list_anc_dist, change_sppnames_letters_ancdist.table)
+
+
+## Network list 
+
+
+list_networks_sppnames_numbers <- lapply(network_list, set_sppNames_numbers)
+
+#### convert numbers to letters
+
+list_networks_sppnames_letters <- lapply(list_networks_sppnames_numbers, convert_sppnames_toletters)
+
+
+
+
+
+
+## ------------------- Check
+
+
+if(length(list_anc_dist_letters) == length(list_networks_sppnames_letters)){
+  
+  print("all good - distance-ancestry table with letters and network list with leters have the same length")
+} else {
+  
+  print("PROBLEM")
+}
+
+
+```
+
+## Loop for obtaining phylogenetic distances:
+
+
+Without distinguishing predators and preys:
+
+```{r}
+
+list_newick <- list()
+list_trees <- list()
+list_newick_tails <- list()
+list_dist.phylo <- list()
+
+
+
+
+for (i in 1:length(list_anc_dist_letters)) {
+  
+  
+  #print(sprintf("step %s", i))
+  
+  list_newick[[i]] <- ToPhylo(list_anc_dist_letters[[i]])
+  
+  list_newick_tails[[i]] <- paste(list_newick[[i]], "root")
+  
+  list_trees[[i]] <- read.tree(text = sub("A root",";",list_newick_tails[[i]]))
+  
+  list_dist.phylo[[i]] <- cophenetic.phylo(list_trees[[i]])
+  
+
+}
+
+
+
+
+
+
+
+## ------------------- Check
+
+if (length(which(unlist(lapply(list_dist.phylo, is.null)) == TRUE)) == 0) {
+  
+  print("all good - no nulls")
+} else {
+  
+  print("PROBLEM")
+  
+}
+
+
+
+if (length(list_dist.phylo) == length(list_networks_sppnames_letters)){
+  
+  print("all good - list phylo dist with letters and list interactions with letters have the same length")
+  
+}else{
+  
+  print("PROBLEM")
+  
+}
+
+
+```
+
+
+#### Retain only present species in network matrices
+
+For phylogenetic distance matrices, the spp for which distances are calculated are already only the ones present.
+
+But the interaction matrices are 1000 x 1000 (all spp possible), so I need to crop them to retain only present species at each timestep, and test that these correspond to the ones present in the phylogenetic distance matrices at the corresponding timestep.
+
+
+I use the presence_matrix to retain the species present at each timestep in each network from the network list. So first I need to convert the spp names of the presence_matrix to letters so that they can match with those of the network. Second, I will discard the timesteps already discarted in the phylogenetic distance matrices list and in the network list so that the presence_matrix match in the length of timesteps with them.
+
+
+```{r}
+
+# Set the same spp names for the presence_matrix than for the interacion matrices
+
+
+
+
+
+## ------------------- Check
+
+if(length(which(colnames(presence_matrix) != colnames(list_networks_sppnames_letters[[1]]))) == 0){
+  
+  print("all good - spp names in presence_matrix correspond to spp names in network list")
+  
+} else {
+  
+  print("PROBLEM")
+} 
+
+
+
+
+
+# Discard same timesteps (rows) than the discarted phylogenetic distance matrices
+
+presence_matrix <- presence_matrix[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist),]
+
+
+
+
+## ------------------- Check
+
+if(nrow(presence_matrix) == length(list_networks_sppnames_letters) & 
+   nrow(presence_matrix) == length(list_dist.phylo)){
+  
+  print("all good - presence matrix, list phylo dist and list interaction networks have the same n_steps")
+  
+} else {
+  
+  print("PROBLEM")
+}
+
+
+
+
+```
+
+Now that the presence_matrix has the spp names with letters and retains the same timesteps than the network list, I will use it to retain only the species present at each timestep in each 1000 x 1000 network:
+
+```{r}
+
+## crop the interaction matrix with present spp
+
+list_net_present_spp.letters <- list()
+
+for (i in 1:length(list_networks_sppnames_letters)) {
+  
+ list_net_present_spp.letters[[i]] <- list_networks_sppnames_letters[[i]][names(which(presence_matrix[i,] == 1)), names(which(presence_matrix[i,] == 1))]
+  
+}
+
+
+
+```
+
+
+## compute niche distances
+
+```{r}
+
+list_niche_dist <- list()
+
+for (i in 1:length(list_niche_vec)) {
+  
+  list_niche_dist[[i]] <- abs(outer(list_niche_vec[[i]],list_niche_vec[[i]],'-'))
+  
+} 
+
+```
+
+```{r}
+
+
+if(length(list_dist.phylo) == length(list_niche_dist)) {
+  
+  print("all good - list phylo dist and lists interact dist have the same length")
+  
+} else {
+  
+  print("PROBLEM")
+  
+}
+
+
+```
+
+#### For phylogenetic distance matrices, retain only those species present
+
+Phylogenetic distance matrices retain the extinct species together with the present ones. Therefore, I need to retain only present species in the phylogenetic distance matrices. 
+
+To do this,
+
+- 1st - order the names of columns and rows of both phylogenetic and interaction distance matrices so that they coincide
+- 2nd - Retain in the phylo-distance matrix only those species names that the interaction distance matrix has. This way, I will be retaining only the present species (remember the interaction distance matrices have already retained the present species only when we used the presence_matrix for it)
+
+
+
+```{r}
+
+list_dist.phylo_pres <- list()
+
+for (i in 1:length(list_dist.phylo)) {
+  
+  spp_present <- colnames(list_niche_dist[[i]])
+  list_dist.phylo_pres[[i]] <- list_dist.phylo[[i]][spp_present ,spp_present] 
+  
+  
+}
+
+
+
+```
+
+
+
+```{r}
+
+
+## Check that now phylo and niche distance matrices have the same number of spp, same names, and in the same order
+
+
+if (length(which(check_colnames_lists(list_dist.phylo_pres, list_niche_dist) == FALSE)) == 0) {
+  
+  print("all good - names in phylo dist matrices and interaction matrices pred match")
+  
+} else {
+  
+  print("PROBLEM")
+  
+}
+
+
+
+
+```
+
+
+
+## Compute MDS
+
+```{r}
+
+### Check what matrices of interactions have all 0 and discard them
+
+check_matrix.with.values <- function(matrix) {
+  
+  result <- any(matrix != 0)
+  
+  return(result)
+  
+}
+
+
+# identify what matrices have all interaction distances = 0 and discard them
+
+vec_timesteps_all0 <- which(lapply(list_niche_dist,check_matrix.with.values) != TRUE)
+
+
+if(length(vec_timesteps_all0) > 0){
+  
+  n_discard_timesteps_all0 <- vec_timesteps_all0[length(vec_timesteps_all0)]
+  
+  list_niche_dist <- list_niche_dist[-(1:n_discard_timesteps_all0)]
+  
+  list_dist.phylo_pres <- list_dist.phylo_pres[-(1:n_discard_timesteps_all0)]
+  
+}
+
+
+
+
+## Convert matrix to distance objects
+
+list_dist_niche_dist <- list()
+list_dist_dist.phylo_pres <- list()
+
+for (i in 1:length(list_niche_dist)) {
+  
+  list_dist_dist.phylo_pres[[i]] <- as.dist(list_dist.phylo_pres[[i]])
+  list_dist_niche_dist[[i]] <- as.dist(list_niche_dist[[i]])
+  
+}
+
+
+
+
+list_pco.phy <- list()
+list_pco.niche <- list()
+
+
+for (i in 1:length(list_dist_dist.phylo_pres)) {
+
+pco_phy <- dudi.pco(list_dist_dist.phylo_pres[[i]], scannf = FALSE, full = TRUE) 
+
+list_pco.phy[[i]] <- pco_phy$li
+
+pco_niche <- dudi.pco(list_dist_niche_dist[[i]], scannf = FALSE, full = TRUE) 
+
+list_pco.niche[[i]] <- pco_niche$li
+
+
+}
+
+
+
+```
+
+
+## Compute correlation - Procrustes test
+
+I compute a procrustes correlation between interaction distances as predators, preys, or the mean, and the phylogenetic distances. To do this, I use the **protest** and **procrustes** functions from the vegan package.
+
+
+```{r}
+
+protest_niche <- list()
+procrustes_niche <- list()
+
+
+for (i in 1:length(list_pco.phy)) {
+  
+  protest_niche[[i]] <- protest(list_pco.niche[[i]], list_pco.phy[[i]])
+  
+  procrustes_niche[[i]] <- procrustes(list_pco.niche[[i]],list_pco.phy[[i]])
+  
+  
+}
+
+
+
+
+```
+
+
+#### Create dataframe results
+
+
+I store the correlation and Pvalue from the tests.
+
+
+```{r}
+
+protest_niche_pval <- c()
+protest_niche_corr <- c()
+protest_niche_t <- c()
+
+
+
+for (i in 1:length(protest_niche)) {
+  
+  protest_niche_pval[i] <- protest_niche[[i]]$signif
+  
+  protest_niche_corr[i] <-protest_niche[[i]]$t0
+  
+  protest_niche_t[i] <-mean(protest_niche[[i]]$t)
+  
+  
+}
+
+
+
+
+if(length(vec_timesteps_all0) > 0){
+  
+  n_max_step_discarded <- n_discard_timesteps_all0 + final.discarded_timestep
+  
+  timesteps <- (n_max_step_discarded+1):n_steps
+  
+}else{
+  
+  timesteps <- (final.discarded_timestep+1):n_steps
+}
+
+
+
+
+df_signal_time <- data.frame(timesteps,
+                            protest_niche_pval,protest_niche_corr,protest_niche_t
+                            )
+
+df_signal_time$sign <- with(df_signal_time, ifelse(protest_niche_pval < 0.051, 'sign', 'non.sign'))
+
+
+
+df_signal_time
+
+
+```
+
+# Results
+
+
+### Plot phylogenetic signal through time
+
+```{r}
+
+
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
+
+
+p_phylo_niche <- ggplot(df_signal_time, aes(x=timesteps, y=protest_niche_corr)) +
+       geom_line(color="black", linetype="twodash")+
+  #geom_point(aes(fill = sign_mean, color=sign_mean), size=2, alpha = 0.7) +
+  theme_bw()+
+    my.theme+
+    scale_colour_manual(values = c("black", "red"))+
+    ggtitle("phylo distance - n trait distance")+
+xlab("timesteps")+
+  ylab("Phylogenetic signal")
+
+p_phylo_niche
+
+
+```
+### Plot species richness through time
+
+```{r}
+# SHOW ALSO NUMBER OF SPECIES IN THE GRAPH
+
+
+n_spp_time <- c()
+
+presence_matrix_cropped <- list_simulation1$presence_matrix[timesteps,]
+
+for (i in 1:nrow(presence_matrix_cropped)) {
+  
+  n_spp_time[i] <- length(which(presence_matrix_cropped[i,] == 1))
+  
+}
+
+df_signal_time$nspp <- n_spp_time
+
+
+p.spp <- ggplot(df_signal_time, aes(x=timesteps, y = nspp)) +
+  geom_line(color="black", linetype="twodash") +
+  theme_bw()+
+  my.theme+
+  scale_colour_manual(values = c("black", "red"))+
+  xlab("timesteps")+
+  ylab("N species")
+
+p.spp
+
+```

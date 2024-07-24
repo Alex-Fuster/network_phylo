@@ -1,0 +1,1084 @@
+---
+title: "Obtain phylogenetic and interaction distances and compute phylogenetic signal - 1 simulation only"
+description: this scripts computes phylogenetic signal with time for only one simulation, displaying all the steps separatelly
+---
+
+
+
+
+```{r}
+
+source("functions/functions_phylosignal.R")
+library(ape)
+library(apTreeshape)
+library(aricode)
+library(igraph)
+library(ggplot2)
+library(vegan)
+library(ggpubr)
+library(ade4)
+```
+
+parameters for plotting
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+        axis.title = element_text(size = 14),
+        legend.text=element_text(size=10),
+        legend.title = element_text(size=12),
+        plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+        axis.title.y = element_text(hjust = 0.5),
+        axis.title.x = element_text(hjust = 0.5))
+```
+
+
+
+### Load simulation data
+
+```{r}
+Smax = 1000
+```
+
+
+
+COMPETITION
+
+```{r}
+
+list_res <- readRDS("../Data/selection_evolution/competition/list_res_neg_2.rds")
+
+
+# count number of timesteps where there are spp
+
+list_simulation1 <- list_res
+
+n_steps <- length(list_simulation1$network_list)
+
+```
+
+
+FACILITATION
+
+```{r}
+
+list_res <- readRDS("../Data/selection_evolution/facilitation/test/list_res_pos_2.rds")
+
+
+# count number of timesteps where there are spp
+
+list_simulation1 <- list_res
+
+n_steps <- length(list_simulation1$network_list)
+
+
+```
+
+
+FOODWEB
+
+```{r}
+
+list_res <- readRDS("../data/selection_evolution/foodweb/list_res_fw_1.rds")
+
+
+list_simulation1 <- list_res
+
+
+# count number of timesteps where there are spp
+
+n_steps <- length(list_simulation1$network_list)
+
+
+
+```
+
+NEUTRAL
+
+```{r}
+
+list_res <- readRDS("../data/neutral/list_res_n_10.rds")
+
+list_simulation1 <- list_res
+
+
+# count number of timesteps where there were spp
+
+n_steps <- length(list_simulation1$network_list)
+
+```
+
+
+#### Crop presence matrix to nsteps
+
+The presence_matrix (rows = timesteps, cols = species, entries = 1,0) has extra timesteps in case the simulation is longer (max = 350). Crop the presence matrix to the number of timesteps in the simulation:
+
+```{r}
+
+presence_matrix <- list_simulation1$presence_matrix
+
+presence_matrix <- presence_matrix[1:n_steps,]
+
+```
+
+
+
+#### Identify timesteps where phylogenetic distances cant be calculated
+
+It requires at leas 3 species to compute the phylogenetic distances.
+Check the timestep from which we can make the calculations by looking at the presence_matrix and see which matrices (or timesteps) have less than 3 spp:
+
+```{r}
+
+non.valid_timesteps_phylo_distance <- c(which(rowSums(presence_matrix) < 3))
+
+# until what timestep need to discard:
+
+final.discarded_timestep <- non.valid_timesteps_phylo_distance[length(non.valid_timesteps_phylo_distance)]
+
+print(paste("timesteps 1 to", final.discarded_timestep, "will be discarted as they have less than 3 spp"))
+
+
+```
+
+
+
+
+#### homogenize elements to start from valid timesteps
+
+Discard those timesteps with less than 3 spp in both the list_anc_dist table (ancestry table) and the network_list:
+
+```{r}
+
+# ancestry-distances table
+
+list_anc_dist <- list_simulation1$list_anc_dist[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist)]
+
+
+
+# Network list
+
+network_list <- list_simulation1$network_list[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist)]
+
+
+
+
+
+
+
+## ------------------- Check
+
+if (length(which(is.null(list_simulation1$network_list))) > 0) {
+  
+  print("check - null network somewhere")
+} else {
+  print("all good - no null networks")
+}
+
+
+if(length(list_anc_dist) == length(network_list)){
+  
+  print("all good - distance-ancestry table and network list have the same length")
+} else {
+  
+  print("PROBLEM")
+}
+
+
+```
+
+#### Eliminate basal species (for foodweb and foodweb neutral)
+
+```{r}
+
+# discard basals in interaction matrixes
+
+Sbasals <- length(list_simulation1$basal)
+
+network_list <- lapply(network_list, eliminate_basals, nbasals = Sbasals)
+
+
+```
+
+
+
+#### Convert spp names from numbers to letters
+
+
+Species names in both the ancestry table and the networks are numbers. Convert it into letters with the function **change_sppnames_letters_ancdist.table()** for the ancestry table, and **set_sppNames_numbers()** (because matrices lack colnames and rownames) and **convert_sppnames_toletters()** for the network list:
+
+```{r}
+
+## ancestry-distances table
+
+list_anc_dist_letters <- lapply(list_anc_dist, change_sppnames_letters_ancdist.table)
+
+
+## Network list 
+
+
+list_networks_sppnames_numbers <- lapply(network_list, set_sppNames_numbers)
+
+#### convert numbers to letters
+
+list_networks_sppnames_letters <- lapply(list_networks_sppnames_numbers, convert_sppnames_toletters)
+
+
+
+
+
+
+## ------------------- Check
+
+
+if(length(list_anc_dist_letters) == length(list_networks_sppnames_letters)){
+  
+  print("all good - distance-ancestry table with letters and network list with leters have the same length")
+} else {
+  
+  print("PROBLEM")
+}
+
+
+```
+
+
+
+
+
+## Loop for obtaining phylogenetic distances:
+
+
+Without distinguishing predators and preys:
+
+```{r}
+
+list_newick <- list()
+list_trees <- list()
+list_newick_tails <- list()
+list_dist.phylo <- list()
+
+
+
+
+for (i in 1:length(list_anc_dist_letters)) {
+  
+  
+  #print(sprintf("step %s", i))
+  
+  list_newick[[i]] <- ToPhylo(list_anc_dist_letters[[i]])
+  
+  list_newick_tails[[i]] <- paste(list_newick[[i]], "root")
+  
+  list_trees[[i]] <- read.tree(text = sub("A root",";",list_newick_tails[[i]]))
+  
+  list_dist.phylo[[i]] <- cophenetic.phylo(list_trees[[i]])
+  
+
+}
+
+
+
+
+
+
+
+## ------------------- Check
+
+if (length(which(unlist(lapply(list_dist.phylo, is.null)) == TRUE)) == 0) {
+  
+  print("all good - no nulls")
+} else {
+  
+  print("PROBLEM")
+  
+}
+
+
+
+if (length(list_dist.phylo) == length(list_networks_sppnames_letters)){
+  
+  print("all good - list phylo dist with letters and list interactions with letters have the same length")
+  
+}else{
+  
+  print("PROBLEM")
+  
+}
+
+
+```
+
+
+#### convert spp names to letters in presence matrix
+
+
+
+```{r}
+
+# Set the same spp names for the presence_matrix than for the interacion matrices
+
+
+colnames(presence_matrix) <- seq(1:Smax)
+
+colnames(presence_matrix) <- chartr("0123456789", "ABCDEFGHIJ", colnames(presence_matrix))
+
+
+
+## ------------------- Check
+
+if(length(which(colnames(presence_matrix) != colnames(list_networks_sppnames_letters[[1]]))) == 0){
+  
+  print("all good - spp names in presence_matrix correspond to spp names in network list")
+  
+} else {
+  
+  print("PROBLEM")
+} 
+
+
+
+
+
+# Discard same timesteps (rows) than the discarted phylogenetic distance matrices
+
+presence_matrix <- presence_matrix[(final.discarded_timestep+1):length(list_simulation1$list_anc_dist),]
+
+
+
+
+## ------------------- Check
+
+if(nrow(presence_matrix) == length(list_networks_sppnames_letters) & 
+   nrow(presence_matrix) == length(list_dist.phylo)){
+  
+  print("all good - presence matrix, list phylo dist and list interaction networks have the same n_steps")
+  
+} else {
+  
+  print("PROBLEM")
+}
+
+
+
+
+```
+
+
+
+
+
+#### Retain only present species in phylogenetic distance matrices
+
+Now use the presence matrix to retain only present species in phylogenetic distance matrices
+
+
+```{r}
+
+## crop the phylogenetic distance matrix with present spp
+
+list_dist.phylo_pres <- list()
+
+for (i in 1:length(list_dist.phylo)) {
+
+  
+ list_dist.phylo_pres[[i]] <- list_dist.phylo[[i]][names(which(presence_matrix[i,] == 1)), names(which(presence_matrix[i,] == 1))]
+  
+}
+
+```
+
+
+Check that phylogenetic distance matrices retain present species:
+
+```{r}
+
+vec_error <- c()
+
+for (i in 1:nrow(presence_matrix)) {
+  
+ vec_tf <-  names(presence_matrix[i, which(presence_matrix[i,] == 1)]) == colnames(list_dist.phylo_pres[[i]])
+ 
+ if(length(which(vec_tf == FALSE)) > 0){
+   
+   vec_error[i] <- "error"
+
+   
+ } else if (length(which(vec_tf == FALSE)) == 0 ){
+   
+   vec_error[i] <- "g"
+   
+ }
+  
+}
+
+
+if(length(which(vec_error == "error")) > 0){
+  
+     print("error")
+}else{
+  
+  print("All good. Phylo dist matrices retain present spp")
+}
+
+
+
+```
+
+#### Retain only present species in network matrices
+
+
+
+I use the presence_matrix to retain the species present at each timestep in each network from the network list.
+
+Now that the presence_matrix has the spp names with letters and retains the same timesteps than the network list, I will use it to retain only the species present at each timestep in each 1000 x 1000 network:
+
+```{r}
+
+## crop the interaction matrix with present spp
+
+list_net_present_spp.letters <- list()
+
+for (i in 1:length(list_networks_sppnames_letters)) {
+  
+ list_net_present_spp.letters[[i]] <- list_networks_sppnames_letters[[i]][names(which(presence_matrix[i,] == 1)), names(which(presence_matrix[i,] == 1))]
+  
+}
+
+
+
+```
+
+
+
+
+
+
+## Compute interaction distances (NMI)
+
+
+I will use the function **compute_nmi_aricode_pred()** for predators and **compute_nmi_aricode_prey()** for preys (their differ in whether the NMI is computed for columns or rows, respectively). These compute the NMI using the aricode package.
+
+
+```{r}
+
+
+## DISTANCES AS PREDATORS (columns)
+
+
+#list_interact_distances_pred <- lapply(list_net_present_spp.letters, FUN = compute_nmi_cols)
+list_interact_distances_pred <- lapply(list_net_present_spp.letters, FUN = compute_nmi_aricode_pred)
+
+
+# thosa that are all 0 will have NaN - I need to convert them into 0
+
+
+## DISTANCES AS PREYS (rows)
+
+#list_interact_distances_prey <- lapply(list_net_present_spp.letters, FUN = compute_nmi_rows)
+list_interact_distances_prey <- lapply(list_net_present_spp.letters, FUN = compute_nmi_aricode_prey)
+
+
+```
+
+
+Some species have NAN in their diagonal. I make sure this doesnt happen by setting the diagonal to zeros with the function **diag_to0()**:
+
+
+```{r}
+
+list_interact_distances_pred <- lapply(list_interact_distances_pred, FUN = diag_to0)
+
+list_interact_distances_prey <- lapply(list_interact_distances_prey, FUN = diag_to0)
+
+```
+
+
+Some species have all 0 in their interactions (either as prey (if all 0 in the row, top predators) or predators (if all 0 in the column, basal spp)). When two spp having all 0 compare with each other, they give NaN instead of 0 (the (1-NMI) should be 0 as they have the same vector of interactions).
+
+Therefore, I assign a 0 to all NaN found:
+
+
+```{r}
+
+list_interact_distances_pred_corrected <- list()
+
+for (i in 1:length(list_interact_distances_pred)) {
+  
+  list_interact_distances_pred_corrected[[i]] <- convet_nan_to_0_matrix(matrix = list_interact_distances_pred[[i]],
+                       marg = 2) # 1 (rows), 2 (col), or c(1,2)
+  
+}
+
+
+list_interact_distances_prey_corrected <- list()
+
+for (i in 1:length(list_interact_distances_prey)) {
+  
+  list_interact_distances_prey_corrected[[i]] <- convet_nan_to_0_matrix(matrix = list_interact_distances_prey[[i]],
+                       marg = 1) # 1 (rows), 2 (col), or c(1,2)
+  
+}
+
+
+
+if(length(list_interact_distances_prey_corrected) == length(list_interact_distances_pred_corrected) &
+   length(list_interact_distances_prey_corrected) == length(list_dist.phylo_pres)){
+  
+  print("all good - lists of phylo dist and interactions have the same length")
+  
+} else {
+  
+  print("PROBLEM")
+  
+}
+
+
+```
+
+
+To compute the overall distances between species I calculate the mean between the distances as preys and as predators. I do this by looping through the lists (predator distance matrices list, prey distance matrices list), so selecting one matric from each at a given timestep, and computing the mean between them with the function **compute_mean_two_mat_from_list()**:
+
+```{r}
+
+list_interact_distances_mean_corrected <- list()
+
+
+for (i in 1:length(list_interact_distances_pred_corrected)) {
+  
+ #pair_mat <- list(list_interact_distances_pred_corrected[[i]], list_interact_distances_prey_corrected[[i]])
+  
+ #list_interact_distances_mean_corrected[[i]] <- compute_mean_two_mat_from_list(list = pair_mat)
+  
+  list_interact_distances_mean_corrected[[i]] <- (list_interact_distances_pred_corrected[[i]] + list_interact_distances_prey_corrected[[i]]) / 2
+  
+}
+
+
+
+
+if(length(list_interact_distances_mean_corrected) == length(list_dist.phylo_pres)){
+  
+  print("all good - lists of phylo dist and mean interactions have the same length")
+  
+} else {
+  
+  print("PROBLEM")
+  
+}
+
+```
+
+
+##### check for same length of phylogenetic and interaction distances' lists:
+
+```{r}
+
+
+if(length(list_dist.phylo) == length(list_interact_distances_pred) &
+   length(list_dist.phylo) == length(list_interact_distances_prey)) {
+  
+  print("all good - list phylo dist and lists interact dist have the same length")
+  
+} else {
+  
+  print("PROBLEM")
+  
+}
+
+
+```
+
+
+
+
+### Check that interac and phylo distance matrices' match in their number of columns and in the composition of spp
+
+```{r}
+
+
+## Check that the order number of columns matches
+
+vec_problems_ncol <- c()
+
+for (i in 1:length(list_interact_distances_mean_corrected)) {
+  
+  if(ncol(list_interact_distances_mean_corrected[[i]]) != ncol(list_dist.phylo_pres[[i]])){
+    
+    vec_problems_ncol[i] <- "P"
+    
+  } else if(ncol(list_interact_distances_mean_corrected[[i]]) == ncol(list_dist.phylo_pres[[i]])){
+    
+    vec_problems_ncol[i] <- "g"
+  }
+  
+}
+
+
+
+if(length(which(vec_problems_ncol == "P") > 0)){
+  
+  print("PROBLEM")
+  
+}else{
+  
+  print("All good. Interact and phylo dist. matrices have the same ncols")
+}
+
+
+
+# check that the composition of species is the same
+
+vec_problems_sppcomp <- c()
+
+for (i in 1:length(list_dist.phylo_pres)) {
+  
+  vec_problems_sppcomp[i] <- identical(sort(colnames(list_interact_distances_mean_corrected[[i]])), sort(colnames(list_dist.phylo_pres[[i]])))
+  
+}
+
+if(length(which(vec_problems_ncol == "FALSE") > 0)){
+  
+  print("PROBLEM")
+  
+}else{
+  
+  print("All good. Interact and phylo dist. matrices have the order of colnames")
+}
+
+
+
+```
+
+
+
+### Check that the order of species matches between interaction and phylogenetic distance matrices
+
+
+```{r}
+
+## Check that the order of colnames matches
+
+
+vec_problems <- c()
+
+for (i in 1:length(list_interact_distances_mean_corrected)) {
+  
+ vec_truefalse <- colnames(list_interact_distances_mean_corrected[[i]]) == colnames(list_dist.phylo_pres[[i]])
+ 
+
+if(FALSE %in% vec_truefalse){
+  
+  vec_problems[i] <- "P"
+  
+}else{
+  
+  vec_problems[i] <- "_"
+}
+  
+  
+}
+
+
+if(length(which(vec_problems == "P") > 0)){
+  
+  print("PROBLEM")
+  
+}else{
+  
+  print("All good. Interact and phylo dist. matrices have the same order of colnames")
+}
+
+```
+
+
+```{r}
+ list_interact_distances_mean_corrected_d4 <- list()
+    
+    for (i in 1:length(list_interact_distances_mean_corrected)) {
+      
+      if(ncol(list_interact_distances_mean_corrected[[i]]) < 7){
+        
+        list_interact_distances_mean_corrected_d4[[i]] <- get_rank_mat(list_interact_distances_mean_corrected[[i]], ncol(list_interact_distances_mean_corrected[[i]]))[[2]]
+        
+      } else {
+        
+        list_interact_distances_mean_corrected_d4[[i]] <- get_rank_mat(list_interact_distances_mean_corrected[[i]], 6)[[2]]
+        
+      } 
+      
+      
+    }
+
+
+ list_interact_distances_mean_corrected_d4 <- list()
+    
+    for (i in 1:length(list_interact_distances_mean_corrected)) {
+      
+      if(ncol(list_interact_distances_mean_corrected[[i]]) < 7){
+        
+        list_interact_distances_mean_corrected_d4[[i]] <- get_rank_mat(list_interact_distances_mean_corrected[[i]], ncol(list_interact_distances_mean_corrected[[i]]))[[2]]
+        
+      } else {
+        
+        list_interact_distances_mean_corrected_d4[[i]] <- get_rank_mat(list_interact_distances_mean_corrected[[i]], 6)[[2]]
+        
+      } 
+      
+      
+    }
+
+```
+
+
+
+
+
+## compute Principal Coordinate Analyses
+
+
+Problem - interaction distances are all the same at the beggining and I cant run a pca on those matrices. Phylogenetic distances, however, are different among species from the begging. How to compare interaction and phylogenetic distance matrices in these stages where interaction distances are all the same?
+
+For now, I discard all timesteps where interaction distances are all the same (i.e. 0):
+
+```{r}
+
+### Check what matrices of interactions have all 0 and discard them
+
+#check_matrix.with.values <- function(matrix) {
+  
+ # result <- any(matrix != 0)
+  
+ # return(result)
+  
+#}
+
+
+# identify what matrices have all interaction distances = 0 and discard them
+
+# vec_timesteps_all0 <- which(lapply(list_interact_distances_pred_corrected,check_matrix.with.values) != TRUE)
+# 
+# 
+# if(length(vec_timesteps_all0) > 0){
+#   
+#   n_discard_timesteps_all0 <- vec_timesteps_all0[length(vec_timesteps_all0)]
+#   
+#   list_interact_distances_pred_corrected <- list_interact_distances_pred_corrected[-(1:n_discard_timesteps_all0)]
+#   
+#   list_interact_distances_prey_corrected <- list_interact_distances_prey_corrected[-(1:n_discard_timesteps_all0)]
+#   
+#   list_interact_distances_mean_corrected <- list_interact_distances_mean_corrected[-(1:n_discard_timesteps_all0)]
+#   
+#   list_dist.phylo_pres <- list_dist.phylo_pres[-(1:n_discard_timesteps_all0)]
+#   
+# }
+
+list_dist_dist.phylo_pres <- list()
+list_dist_interact_distances_pred_corrected <- list()
+list_dist_interact_distances_prey_corrected <- list()
+list_dist_interact_distances_mean_corrected <- list()
+
+## Convert matrix to distance objects
+
+for (i in 1:length(list_dist.phylo_pres)) {
+  
+  list_dist_dist.phylo_pres[[i]] <- as.matrix(list_dist.phylo_pres[[i]])
+  list_dist_interact_distances_pred_corrected[[i]] <- as.matrix(list_interact_distances_pred_corrected[[i]])
+  list_dist_interact_distances_prey_corrected[[i]] <- as.matrix(list_interact_distances_prey_corrected[[i]])
+  list_dist_interact_distances_mean_corrected[[i]] <- as.matrix(list_interact_distances_mean_corrected[[i]])
+  
+}
+
+
+
+
+list_pco.phy <- list()
+list_pco.int_pred <- list()
+list_pco.int_prey <- list()
+list_pco.int_mean <- list()
+
+
+for (i in 1:length(list_dist_dist.phylo_pres)) {
+
+pco_phy <- cmdscale(list_dist_dist.phylo_pres[[i]], k = 2)
+
+list_pco.phy[[i]] <- pco_phy
+
+pco_pred <- cmdscale(list_dist_interact_distances_pred_corrected[[i]], k = 2)
+
+list_pco.int_pred[[i]] <- pco_pred
+
+
+pco_prey <- cmdscale(list_dist_interact_distances_prey_corrected[[i]], k = 2)
+
+list_pco.int_prey[[i]] <- pco_prey
+
+
+pco_mean <- cmdscale(list_dist_interact_distances_mean_corrected[[i]], k = 2)
+
+list_pco.int_mean[[i]] <- pco_mean
+
+
+
+
+}
+
+
+```
+
+
+
+
+
+## Compute correlation - Procrustes test
+
+I compute a procrustes correlation between interaction distances as predators, preys, or the mean, and the phylogenetic distances. To do this, I use the **protest** and **procrustes** functions from the vegan package.
+
+
+```{r}
+
+protest_pred <- list()
+procrustes_pred <- list()
+
+protest_prey <- list()
+procrustes_prey <- list()
+
+protest_mean <- list()
+procrustes_mean <- list()
+
+
+for (i in 1:length(list_pco.phy)) {
+  
+  protest_pred[[i]] <- protest(list_pco.int_pred[[i]], list_pco.phy[[i]])
+  
+  procrustes_pred[[i]] <- procrustes(list_pco.int_pred[[i]],list_pco.phy[[i]])
+  
+  
+}
+
+for (i in 1:length(list_pco.phy)) {
+  
+  protest_prey[[i]] <- protest(list_pco.int_prey[[i]], list_pco.phy[[i]])
+  
+  procrustes_prey[[i]] <- procrustes(list_pco.int_prey[[i]],list_pco.phy[[i]])
+  
+  
+}
+
+for (i in 1:length(list_pco.phy)) {
+  
+  protest_mean[[i]] <- protest(list_pco.int_mean[[i]], list_pco.phy[[i]])
+  
+  procrustes_mean[[i]] <- procrustes(list_pco.int_mean[[i]],list_pco.phy[[i]])
+  
+  
+}
+
+
+
+```
+
+
+
+#### Create dataframe results
+
+
+I store the correlation and Pvalue from the tests.
+
+
+```{r}
+
+protest_pval_pred <- c()
+protest_corr_pred <- c()
+protest_t_pred <- c()
+
+protest_pval_prey <- c()
+protest_corr_prey <- c()
+protest_t_prey <- c()
+
+protest_pval_mean <- c()
+protest_corr_mean <- c()
+protest_t_mean <- c()
+
+for (i in 1:length(protest_mean)) {
+  
+  protest_pval_pred[i] <- protest_pred[[i]]$signif
+  
+  protest_corr_pred[i] <-protest_pred[[i]]$t0
+  
+  protest_t_pred[i] <-mean(protest_pred[[i]]$t)
+  
+  
+  protest_pval_prey[i] <- protest_prey[[i]]$signif
+  
+  protest_corr_prey[i] <-protest_prey[[i]]$t0
+  
+  protest_t_prey[i] <-mean(protest_prey[[i]]$t)
+  
+  
+  protest_pval_mean[i] <- protest_mean[[i]]$signif
+  
+  protest_corr_mean[i] <-protest_mean[[i]]$t0
+  
+  protest_t_mean[i] <-mean(protest_mean[[i]]$t)
+  
+  
+}
+
+
+
+
+
+  
+timesteps <- (final.discarded_timestep+1):n_steps
+  
+
+
+
+
+df_signal_time <- data.frame(timesteps,
+                            protest_pval_pred,protest_corr_pred,protest_t_pred,
+                            protest_pval_prey,protest_corr_prey,protest_t_prey,
+                             protest_pval_mean,protest_corr_mean,protest_t_mean)
+
+df_signal_time$sign_pred <- with(df_signal_time, ifelse(protest_pval_pred < 0.051, 'sign', 'non.sign'))
+df_signal_time$sign_prey <- with(df_signal_time, ifelse(protest_pval_prey < 0.051, 'sign', 'non.sign'))
+df_signal_time$sign_mean <- with(df_signal_time, ifelse(protest_pval_mean < 0.051, 'sign', 'non.sign'))
+
+
+df_signal_time
+
+
+```
+
+
+
+
+# Results
+
+##Add S as column in df_signal_time based on timesteps
+
+
+### Plot species richness through time
+
+```{r}
+# SHOW ALSO NUMBER OF SPECIES IN THE GRAPH
+
+
+n_spp_time <- c()
+
+presence_matrix_cropped <- list_simulation1$presence_matrix[timesteps,]
+
+for (i in 1:nrow(presence_matrix_cropped)) {
+  
+  n_spp_time[i] <- length(which(presence_matrix_cropped[i,] == 1))
+  
+}
+
+df_signal_time$nspp <- n_spp_time
+
+
+p.spp <- ggplot(df_signal_time, aes(x=timesteps, y = nspp)) +
+  geom_line(color="black", linetype="twodash") +
+  theme_bw()+
+  my.theme+
+  scale_colour_manual(values = c("black", "red"))+
+  xlab("timesteps")+
+  ylab("N species")
+
+p.spp
+
+```
+
+
+
+
+### Plot phylogenetic signal through time
+
+```{r}
+
+
+
+p_pred <- ggplot(df_signal_time, aes(x=nspp, y=protest_corr_pred)) +
+       geom_line(color="black", linetype="twodash")+
+  #geom_point(aes(fill = sign_mean, color=sign_mean), size=2, alpha = 0.7) +
+  theme_bw()+
+    my.theme+
+    scale_colour_manual(values = c("black", "red"))+
+    ggtitle("as predators")+
+xlab("S")+
+  ylab("Phylogenetic signal")+
+  ylim(0,1)
+
+
+
+
+p_prey <- ggplot(df_signal_time, aes(x=nspp, y=protest_corr_prey)) +
+       geom_line(color="black", linetype="twodash")+
+  #geom_point(aes(fill = sign_mean, color=sign_mean), size=2, alpha = 0.7) +
+  theme_bw()+
+    my.theme+
+    scale_colour_manual(values = c("black", "red"))+
+    ggtitle("as preys")+
+xlab("S")+
+  ylab("Phylogenetic signal")+
+  ylim(0,1)
+
+
+
+
+p_mean <- ggplot(df_signal_time, aes(x=nspp, y=protest_corr_mean)) +
+       geom_line(color="black", linetype="twodash")+
+  #geom_point(aes(fill = sign_mean, color=sign_mean), size=2, alpha = 0.7) +
+  geom_smooth(method = "gam", color = "red", se = TRUE)+
+    scale_colour_manual(values = c("black", "red"))+
+    ggtitle("foodweb")+
+xlab("S")+
+  ylab("Phylogenetic signal")+
+  ylim(0,1)+
+   geom_vline(xintercept = 40, linetype = "dashed", color = "blue")+
+  theme_bw()+
+  my.theme
+
+
+
+
+```
+
+
+~S
+
+```{r}
+ggplot(df_signal_time, aes(x=nspp, y=protest_corr_mean)) +
+  geom_smooth(method = "gam", color = "black", linetype = "twodash", se = FALSE) +
+  theme_bw() +
+  my.theme +
+  scale_colour_manual(values = c("black", "red")) +
+  ggtitle("as predators") +
+  xlab("timesteps") +
+  ylab("Phylogenetic signal")+
+  ylim(0,1)
+```
+
+
+
+
+
+
+```{r}
+
+
+ggarrange(p_prey + rremove("xlab"),
+          p_pred + rremove("xlab"),
+  p_mean + rremove("xlab"), 
+  p.spp, 
+             ncol = 1, nrow = 4)
+
+#ggsave("figures/foodweb_all_result_phylo.time_1sim.png", 
+    #   height = 14,
+     #  width = 7)
+
+```
+
+
+
+

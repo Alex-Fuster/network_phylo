@@ -1,0 +1,333 @@
+---
+title: "Evaluation of simulation FOODWEB NEUTRAL - testing parameters "
+output: html_notebook
+description: this script runs one or few foodweb neutral simulatios and compares the characteristics of the simulated community with those of empirical foodwebs - different combinations of parameters can be tested to explore the results they yield
+---
+
+Script to try parameters out and explore the output
+
+```{r}
+
+library(igraph)
+library(reshape2)
+library(ggplot2)
+library(ggpubr)
+
+
+source("../../code/functions/functions_simulation_neutral.R")
+source("../../code/functions/functions_metrics_networks.R")
+source("../../code/functions/functions_phylosignal.R")
+
+
+```
+
+
+
+For plotting:
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
+```
+
+
+
+
+```{r}
+
+plot_spp_richness <- function(steps, pres_mat) {
+  
+  timesteps <- 1:steps
+  
+  n_spp_time <- c()
+  
+  for (i in 1:nrow(pres_mat)) {
+  
+  n_spp_time[i] <- length(which(pres_mat[i,] == 1))
+  
+  }
+  
+  
+  df_spprich_time <- data.frame(timesteps,n_spp_time)
+  
+  p.spp <- ggplot(df_spprich_time, aes(x=timesteps, y = n_spp_time)) +
+  geom_line(color="black", linetype="twodash") +
+  theme_bw()+
+  my.theme+
+  xlab("timesteps")+
+  ylab("N species")
+  
+  return(p.spp)
+}
+
+
+
+```
+
+
+
+
+
+### Read table metrics from empirical foodwebs
+
+empirical networks data was obtained from the ECOWeB 1.1 database:
+https://digitalcommons.rockefeller.edu/cohen_joel_laboratory/1/
+
+```{r}
+
+net_metr_empirical <- readRDS("../../data/net_metrics_empirical.rds")
+
+net_metr_empirical$id <- NULL
+
+# eliminate one problematic foodweb:
+
+net_metr_empirical <- net_metr_empirical[-13,]
+
+# reshape dataframe:
+
+df_metrics_emp <- reshape_df_net.metrics(df_metrics = net_metr_empirical,
+                       interaction = "empirical")
+```
+
+
+
+
+# FOODWEB NEUTRAL simulation
+
+
+# set general parameters
+
+
+```{r}
+
+pars = list()
+pars$u_max = 0.1 # mutation probability
+pars$u_0 = 1  # 1 for predation & mutualism, 0 for competition
+pars$u_1 = -1 # -1 for predation & mutualism, 1 for competition
+pars$e_0neg = 0.1 # asymptotic extinction probability with infinite negative interactions
+pars$e_1neg = -pars$e_0neg  # Extinction probability with absence of interactions
+pars$e_0pos = 0.01 # asymptotic extinction probability with infinite positive interactions
+pars$e_1pos = 1 - pars$e_0pos # 1 - e0
+pars$a_u = 0.5 # shape of the exponential decay of the colonization - interaction relationship	
+pars$a_eneg = 0.025 # shape of the exponential decay of the negative extinction - interaction relationship 
+pars$a_epos = 0.5  # shape of the exponential decay of the positive extinction - interaction relationship 
+pars$av_r = 0.24 # range of the niche -------------------------------------- 0.27
+pars$beta_n = 1 # parameter of the beta distribution 
+
+pars$Sbasal = 25 # number of basal species --------------------------------------
+pars$Smax = 1000 # Maximal number of species allowed
+
+## pars added from Mathilde's
+
+pars$d = 0.5 # Decrease speed of the establishment probability
+pars$I_max = 60 # Maximal number of interactioning species --------------------------------------
+
+
+#--------------------------------------
+# NEUTRAL
+
+p_est <- 0.5
+p_ext <- 0.0003
+
+```
+
+
+# parameters simulation
+
+```{r}
+nsteps =  250
+n_sims = 3
+list_adj_matrix.f <- list()
+
+```
+
+
+# Simulation
+
+```{r}
+
+
+list_results <- list()
+successful_sim <- 1
+
+while(successful_sim != n_sims){
+  
+  
+  seed <- sample.int(80000, 1)
+  
+  results <- sim_model_bif_n(seed = seed, pars, nsteps = nsteps, pestablishment = p_est, pextinction = p_ext)
+  
+  success <- sum(results$pres[150,])
+  		
+  		if(success >= 20){
+  
+  names(results)[1] <- "presence_matrix"
+  names(results)[7] <- "network_list"
+  names(results)[9] <- "list_anc_dist"
+  
+  list_results[[successful_sim]] <- results
+  
+     
+  list_adj_matrix.f[[successful_sim]] <- get_adjancency_from_simulation.fw_single(list_networks = results$network_list,
+                                           nbasals = length(results$basal),
+                                           pres_mat = results$presence_matrix)
+  
+  	  print(paste("simulation ", successful_sim, "sur", n_sims))
+	  successful_sim <- successful_sim + 1
+	  
+	  rm(results)
+  		}
+}
+
+
+# calculate metrics for each simulation
+
+net_metr_sim <- get_network_measures_from_adjacency(list_adj_matrix = list_adj_matrix.f)
+
+# compute table with mean metrics
+
+df_metrics_fw <- reshape_df_net.metrics(df_metrics = net_metr_sim,
+                       interaction = "foodweb")
+
+
+# join with table of empirical networks
+
+# Joining the empirical networks here
+
+df_metrics <- merge(df_metrics_fw,
+                    df_metrics_emp,
+                    by = "metric")
+
+
+# plot the results
+
+p_S <- plot_metric_foodweb(df = df_metrics, metric = "S", y_axis = "N species")
+p_link.dens <- plot_metric_foodweb(df = df_metrics, metric = "Link_density", y_axis = "L/S")
+p_C <- plot_metric_foodweb(df = df_metrics, metric = "C", y_axis = "Connectance")
+p_top <- plot_metric_foodweb(df = df_metrics, metric = "perc_tops", y_axis = "% top species")
+p_int <- plot_metric_foodweb(df = df_metrics, metric = "perc_int", y_axis = "% intermediate species")
+p_basal <- plot_metric_foodweb(df = df_metrics, metric = "perc_basals", y_axis = "% basal species")
+p_cannibals <- plot_metric_foodweb(df = df_metrics, metric = "perc_cannibals", y_axis = "% cannibal species")
+p_omnivory <- plot_metric_foodweb(df = df_metrics, metric = "omnivory", y_axis = "omnivory")
+p_sd_gen <- plot_metric_foodweb(df = df_metrics, metric = "sd_gen", y_axis = "SD generality")
+p_sd_vul <- plot_metric_foodweb(df = df_metrics, metric = "sd_vul", y_axis = "SD vulnerability")
+
+plot_metrics_comparison_sim_emp <- ggarrange(
+  p_S,
+  p_link.dens,
+  p_C,
+  p_top,
+  p_int,
+  p_basal,
+  p_cannibals,
+  p_omnivory,
+  p_sd_gen,
+  p_sd_vul,
+  
+  nrow = 5,
+  ncol = 2
+  
+)
+
+plot_metrics_comparison_sim_emp
+
+#ggsave("../../figures/simulation_evaluation/neutral_metrics.png", height = 13, width = 9)
+
+```
+
+
+
+# plot species richness over time
+
+```{r}
+
+plot_spp_richness(steps = nsteps, pres_mat = list_results[[2]]$presence_matrix)
+
+```
+
+
+# Degree distribution - Simulation
+
+```{r}
+
+for (i in 1:length(list_adj_matrix.f)) {
+  
+  graph <- graph_from_adjacency_matrix(adjmatrix = list_adj_matrix.f[[i]],
+                                       mode = "directed")
+  
+  degree <- degree(graph, mode="all")
+  
+  deg.dist <- degree_distribution(graph, cumulative=T, mode="all")
+  
+ plot( x=0:max(degree), y=1-deg.dist, pch=19, cex=1.2,
+                          xlab="Degree", ylab="Cumulative Frequency")
+  
+}
+
+
+
+#png(filename="../../figures/simulation_evaluation/degree_distrib_neutral.png", width = 700, height = 500, units = "px")
+
+
+  graph <- graph_from_adjacency_matrix(adjmatrix = list_adj_matrix.f[[1]],
+                                       mode = "directed")
+  
+  degree <- degree(graph, mode="all")
+  
+  deg.dist <- degree_distribution(graph, cumulative=T, mode="all")
+  
+ plot( x=0:max(degree), y=1-deg.dist, pch=19, cex=1.2,
+                          xlab="Degree", ylab="Cumulative Frequency", main = "foodweb neutral")
+ 
+ #dev.off()
+
+
+```
+
+
+# Degree distribution - Empirical networks
+
+
+```{r}
+
+# Make a vector of all your file paths
+
+file_paths_n <- list.files(path = here::here("data/neutral/"), pattern = ".rds", full.names = TRUE)
+
+# Get adjacency matrix from each simulation object stored in our folder
+         
+adj_matrix_list_n <-  get_adjancency_from_simulation.objects(file_path = file_paths_n)
+
+
+# Compute network metrics
+
+net_metr_n.sim <- get_network_measures_from_adjacency(list_adj_matrix = adj_matrix_list_n)
+
+net_metr_n.sim$simulation <- NULL
+
+
+
+# degree distribution
+
+for (i in 1:length(adj_matrix_list_n)) {
+  
+  graph <- graph_from_adjacency_matrix(adjmatrix = adj_matrix_list_n[[i]],
+                                       mode = "directed")
+  
+  degree <- degree(graph, mode="all")
+  
+  deg.dist <- degree_distribution(graph, cumulative=T, mode="all")
+  
+ plot( x=0:max(degree), y=1-deg.dist, pch=19, cex=1.2,
+                          xlab="Degree", ylab="Cumulative Frequency")
+  
+}
+
+    
+```

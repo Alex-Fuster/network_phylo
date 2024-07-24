@@ -1,0 +1,504 @@
+---
+title: "Simulate network evolution and compute phylogenetic signal"
+---
+
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(ggpubr)
+library(igraph)
+library(EnvStats)
+library(aricode)
+library(ggplot2)
+library(vegan)
+library(ade4)
+library(ape)
+
+#source(here::here("code/functions/function_plot_mean_div.R"))
+#source(here::here("code/functions/functions_simulation_inspection.R"))
+source(here::here("code/functions/functions_phylosignal.R")) 
+source(here::here("code/functions/functions_compute_phylosignal_nsim.R"))
+source(here::here("code/functions/function_compute_df_phylosign_fromsimulation.R"))
+source(here::here("code/functions/function_compute_df_centr_long.R"))
+source(here::here("code/functions/functions_compute_degree_longev_fromsimulation.R"))
+
+# facilitation & competition simulation
+source(here::here("code/functions/functions_simulation_fac_comp.R"))
+
+```
+
+
+## Parameters facilitation & competition
+
+```{r}
+pars = list()
+
+# General parameters
+#pars$int = 0 # 0 for competition, 1 for facilitation, 2 for predation
+pars$Smax = 1000 # Maximal number of species in the system
+
+# Related to interaction range trait
+pars$av_r = 0.1 # Half range of the niche of the first species
+pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
+
+pars$u_max = 0.15 # Speciation probability
+
+# Extinction probability, negative interactions communities
+pars$a_eneg = 0.025 # Shape of the exponential decay of the negative extinction - interaction relationship
+pars$e_0neg = 0.5 # Asymptotic extinction probability with infinite negative interactions
+pars$e_1neg = 1  # Extinction probability with absence of interactions
+
+# Extinction probability, positive interactions communities
+pars$a_epos = 1.2  # Shape of the exponential decay of the positive extinction - interaction relationship
+pars$e_0pos = 0.1 #0.075 # Asymptotic extinction probability with infinite positive interactions
+pars$e_1pos = 4.8 #5.19 # 1 - pars$e_0pos
+
+# Establishment probability, negative interactions communities
+pars$a_uneg = 0.075 # Shape of the exponential decay of the colonization - interaction relationship
+pars$u_0neg = 0.075 # Asymptotic establishment probability with infinite competition interactions
+pars$u_1neg = 2 # Establishment probability with absence of competition interaction
+
+# Establishment probability, positive interactions communities
+pars$a_u = 0.8 #0.45 # Shape of the exponential decay of the colonization - interaction relationship
+pars$u_0 = 1 # Asymptotic establishment probability with infinite facilitation interactions
+pars$u_1 = -0.9 #-1 # Establishment probability with absence of facilitation interactions
+pars$d = 0.5 # Decrease speed of the establishment probability
+
+# Extinction and establishment probabilitie for both, positive and negative interactions communities
+pars$Bspe = 4 # Constant minimal number of interaction per species (extablishment prob)
+pars$Bext = 4 # Constant minimal number of interaction per species (extinction prob)
+pars$I_max = 60 # Maximal number of interactioning species
+
+
+pars$beta_n = 1 # parameter of the beta distribution
+
+
+# STRENGTH OF NEUTRAL-DRIVEN EVOLUTION
+
+pars$SN = 0 
+
+
+# PROBABILITY OF ESTABLISHMENT
+# strength of selection-driven selection is 1 - SN
+pars$estab_prob_neutral = 0 
+
+# PROBABILITY OF EXTINCTION
+
+pars$ext_prob_neutral = 0 # neutral probability of extinction
+```
+
+
+
+
+# Add neutral
+
+Change pars$SN to simulate different scenarios:
+
+- Only neutral: pars$SN = 1
+- Only selection: pars$SN = 0
+- Equal neutral and selection: pars$SN = 0.5
+- Stronger neutral: pars$SN = 0.8
+- Stronger selection: pars$SN = 0.2
+
+```{r}
+
+pars$SN = 1 # strength for neutral-driven evolution
+pars$estab_prob_neutral = rep(0.5, pars$Smax) # neutral probability of establishment
+pars$ext_prob_neutral = 0.03 #0.0003 # neutral probability of extinction
+
+```
+
+
+
+
+
+## parameters simulation
+
+```{r}
+nsteps = 250 # Set the maximum timestep per simulation
+nsim = 2 # Set the number of simulations
+
+# Vector to record number of simulation needed to reach 100 valid simulations
+needed_sim_pos <- c(rep(NA, nsim))
+needed_sim_neg <- c(rep(NA, nsim))
+```
+
+
+# Simulaton - facilitation
+
+
+```{r}
+
+
+
+list_res_fac <- list()
+seed_list <- NULL # Set an object to record seed that will be used to launch simulations
+df_div_list_fac <- list() # to store dataframes with speciation and extinction rates
+
+	total_nb_sim <- 0
+	b <- 1
+	df_signal_time = data.frame(matrix(ncol=13,nrow=0, dimnames=list(NULL, c("timesteps",
+	                                                                         "phylosign_cor_mean",
+	                                                                         "phylosign_p_mean",
+	                                                                         "phylosign_cor_pred",
+	                                                                         "phylosign_p_pred",
+	                                                                         "phylosign_cor_prey",
+	                                                                         "phylosign_p_prey",
+	                                                                         "sim",
+	                                                                         "nspp",
+	                                                                         "list_phylo_dist",
+	                                                                       "list_dist_interact_distances_mean_corrected",
+	                                                                       "list_dist_interact_distances_pred_corrected",
+	                                                                     "list_dist_interact_distances_prey_corrected"))))
+	
+	
+	
+	df_centr_long = data.frame(matrix(ncol=13,
+                                   nrow=0, 
+                                   dimnames=list(NULL, c("spp",
+                                                         "timestep",
+                                                         "event",
+                                                         "ancestor",
+                                                         "longevity",
+                                                         "num_speciations",
+                                                         "mean_in_rel_degree",
+                                                         "mean_out_rel_degree",
+                                                         "mean_total_rel_degree",
+                                                         "mean_in_degree",
+                                                         "mean_out_degree",
+                                                         "mean_total_degree",
+                                                         "simulation"))))
+	
+	######################
+	##### simulation #####
+	
+	
+	
+
+	  pars$int = 1
+		successful_sim <- 1 # Set the count of simulations
+		list_res <- list() # Set the list to store the results
+
+	
+
+		seed_record <- c(rep(NA, nsim)) # Set the vector to record the seed that have been used
+
+		while(successful_sim < nsim+1){
+
+  		seed <- sample.int(80000, 1) # Pick a random number, this number will be the seed for one simulation
+  		print(seed)
+
+			# If a seed have already been tested, pick another one
+			if(length(which(seed_list == seed)) != 0){
+				while(seed %in% seed_list){
+    			seed <- sample.int(80000, 1)
+  			}
+			}
+
+			seed_list <- c(seed_list, seed) # Add the seed
+
+			# SIMULATION
+  		simulation <- sim_model_bif_fc(seed = seed, pars = pars, nsteps = nsteps)  
+
+			total_nb_sim <- total_nb_sim +1 # Count the total amount of simulations
+
+			# Test if we have enough species at the timestep 150 in the simulation
+  		success <- sum(simulation$pres[150,])
+
+  		if(success >= 20){
+				#print("the simulation has more than 19 species at the time step 150")
+    		seed_record[successful_sim] <- seed # Record seed which alows us to have "good" simulation
+    		res_sim <- list(simulation_number = paste0("simulation", successful_sim), 
+    		                seed = seed,
+    		                parameters = pars, 
+    		                presence_matrix = simulation$pres, 
+    		                traits_df = simulation$traits,
+    		                parentage_matrix = simulation$anc,
+    		                extinxction_matrix = simulation$extinct, 
+    		                network_list = simulation$L_list, 
+    		                anc_dist_table = simulation$dist_anc, 
+    		                list_anc_dist = simulation$list_dist_anc,
+    		                speciation_matrix = simulation$speciation_matrix,
+    		                extinction_matrix = simulation$extinction_matrix) # Record results from the simulation
+    		
+    		print(paste("simulation ", successful_sim, "of", nsim))
+    		successful_sim <- successful_sim + 1 # Count the amount of "good" simulations
+    		
+    		
+    		#####################################################
+    		#### Save objects to plot diversification curves ####
+    		
+    		# count number of timesteps where there are spp
+    		n_steps <- length(res_sim$network_list)
+    		pres <- res_sim$presence_matrix
+    		
+    		# Number of speciation and extinction events
+    		t0 <- pres[1:(n_steps-1), ]
+    		t1 <- pres[2:n_steps, ] 
+    		spec_mat <- pres[1:(n_steps-1), ] * 0
+    		ext_mat <- pres[1:(n_steps-1), ] * 0
+    		spec_mat[t1 - t0 == 1] <- 1 
+    		ext_mat[t1 - t0 == -1] <- 1
+    		spec <- apply(spec_mat, 1, sum)
+    		ext <- apply(ext_mat, 1, sum)
+    		
+    		S <- apply(pres, 1, sum)[2:n_steps]
+    		
+    		time <- 1:(n_steps-1)
+    		
+    		# Create dataframe for the simulation
+    		df_divrates <- data.frame(spec, ext, S, time)
+    		df_divrates$simulation <- successful_sim-1  # Add simulation index as a column
+    		
+    		# Reshape data using melt function from reshape2 package
+    		df_plot_divrates <- melt(df_divrates, id = c("simulation", "time", "S"))
+    		
+    		# Add to the list
+    		df_div_list_fac[[successful_sim]] <- df_plot_divrates
+  		
+  		
+  		
+  		####################################################
+    		   ##### compute df centrality-longetity #####
+    		###################################################
+    		
+    		df_centr_long_sim <- compute_df_centrality_longevity(results_simulation = res_sim, 
+    		                               int = "facilitation", 
+    		                               Smax = pars$Smax,
+    		                               sim = successful_sim)
+    		
+    		df_centr_long <- rbind(df_centr_long, df_centr_long_sim)
+  		
+  		
+  		####################################################
+  		##### compute phylogenetic signal through time #####
+  		
+  		  
+    		  df_phylosign_sim <- compute_df_phylosignal_fromsimulation(results_simulation = res_sim, 
+    		                                                            int = "facilitation", 
+    		                                                            Smax = pars$Smax,
+    		                                                            sim = successful_sim)
+    		  
+    		df_signal_time <- rbind(df_signal_time, df_phylosign_sim)
+    		
+  		}
+  		
+
+  		
+		}
+		
+		
+	
+	
+	
+df_signal_time_fac <- df_signal_time
+#df_signal_time_comp <- df_signal_time[which(df_signal_time$interaction == "competition"),]
+	df_centr_long_fac <- df_centr_long
+	
+	
+```
+
+
+
+
+# Simulaton - competition
+
+
+```{r}
+
+
+list_res_comp <- list()
+seed_list <- NULL # Set an object to record seed that will be used to launch simulations
+df_div_list_comp <- list() # to store dataframes with speciation and extinction rates
+
+	total_nb_sim <- 0
+	b <- 1
+	df_signal_time = data.frame(matrix(ncol=13,nrow=0, dimnames=list(NULL, c("timesteps",
+	                                                                         "phylosign_cor_mean",
+	                                                                         "phylosign_p_mean",
+	                                                                         "phylosign_cor_pred",
+	                                                                         "phylosign_p_pred",
+	                                                                         "phylosign_cor_prey",
+	                                                                         "phylosign_p_prey",
+	                                                                         "sim",
+	                                                                         "nspp",
+	                                                                         "list_phylo_dist",
+	                                                                       "list_dist_interact_distances_mean_corrected",
+	                                                                       "list_dist_interact_distances_pred_corrected",
+	                                                                     "list_dist_interact_distances_prey_corrected"))))
+	
+	
+		df_centr_long = data.frame(matrix(ncol=13,
+                                   nrow=0, 
+                                   dimnames=list(NULL, c("spp",
+                                                         "timestep",
+                                                         "event",
+                                                         "ancestor",
+                                                         "longevity",
+                                                         "num_speciations",
+                                                         "mean_in_rel_degree",
+                                                         "mean_out_rel_degree",
+                                                         "mean_total_rel_degree",
+                                                         "mean_in_degree",
+                                                         "mean_out_degree",
+                                                         "mean_total_degree",
+                                                         "simulation"))))
+	
+	######################
+	##### simulation #####
+	
+	
+	
+
+	  pars$int = 0
+		successful_sim <- 1 # Set the count of simulations
+		list_res <- list() # Set the list to store the results
+
+	
+
+		seed_record <- c(rep(NA, nsim)) # Set the vector to record the seed that have been used
+
+		while(successful_sim < nsim+1){
+
+  		seed <- sample.int(80000, 1) # Pick a random number, this number will be the seed for one simulation
+  		print(seed)
+
+			# If a seed have already been tested, pick another one
+			if(length(which(seed_list == seed)) != 0){
+				while(seed %in% seed_list){
+    			seed <- sample.int(80000, 1)
+  			}
+			}
+
+			seed_list <- c(seed_list, seed) # Add the seed
+
+			# SIMULATION
+  		simulation <- sim_model_bif_fc(seed = seed, pars = pars, nsteps = nsteps)  
+
+			total_nb_sim <- total_nb_sim +1 # Count the total amount of simulations
+
+			# Test if we have enough species at the timestep 150 in the simulation
+  		success <- sum(simulation$pres[150,])
+
+  		if(success >= 20){
+				#print("the simulation has more than 19 species at the time step 150")
+    		seed_record[successful_sim] <- seed # Record seed which alows us to have "good" simulation
+    		res_sim <- list(simulation_number = paste0("simulation", successful_sim), 
+    		                seed = seed,
+    		                parameters = pars, 
+    		                presence_matrix = simulation$pres, 
+    		                traits_df = simulation$traits,
+    		                parentage_matrix = simulation$anc,
+    		                extinxction_matrix = simulation$extinct, 
+    		                network_list = simulation$L_list, 
+    		                anc_dist_table = simulation$dist_anc, 
+    		                list_anc_dist = simulation$list_dist_anc,
+    		                speciation_matrix = simulation$speciation_matrix,
+    		                extinction_matrix = simulation$extinction_matrix) # Record results from the simulation
+    		
+    		print(paste("simulation ", successful_sim, "of", nsim))
+    		successful_sim <- successful_sim + 1 # Count the amount of "good" simulations
+    		
+    		
+    		#####################################################
+    		#### Save objects to plot diversification curves ####
+    		
+    		# count number of timesteps where there are spp
+    		n_steps <- length(res_sim$network_list)
+    		pres <- res_sim$presence_matrix
+    		
+    		# Number of speciation and extinction events
+    		t0 <- pres[1:(n_steps-1), ]
+    		t1 <- pres[2:n_steps, ] 
+    		spec_mat <- pres[1:(n_steps-1), ] * 0
+    		ext_mat <- pres[1:(n_steps-1), ] * 0
+    		spec_mat[t1 - t0 == 1] <- 1 
+    		ext_mat[t1 - t0 == -1] <- 1
+    		spec <- apply(spec_mat, 1, sum)
+    		ext <- apply(ext_mat, 1, sum)
+    		
+    		S <- apply(pres, 1, sum)[2:n_steps]
+    		
+    		time <- 1:(n_steps-1)
+    		
+    		# Create dataframe for the simulation
+    		df_divrates <- data.frame(spec, ext, S, time)
+    		df_divrates$simulation <- successful_sim-1  # Add simulation index as a column
+    		
+    		# Reshape data using melt function from reshape2 package
+    		df_plot_divrates <- melt(df_divrates, id = c("simulation", "time", "S"))
+    		
+    		# Add to the list
+    		df_div_list_comp[[successful_sim]] <- df_plot_divrates
+  		
+  		
+  		
+  		####################################################
+    		   ##### compute df centrality-longetity #####
+    		###################################################
+    		
+    		df_centr_long_sim <- compute_df_centrality_longevity(results_simulation = res_sim, 
+    		                               int = "competition", 
+    		                               Smax = pars$Smax,
+    		                               sim = successful_sim)
+    		
+    		df_centr_long <- rbind(df_centr_long, df_centr_long_sim)
+  		
+  		
+  		####################################################
+  		##### compute phylogenetic signal through time #####
+  		
+  		  
+    		  df_phylosign_sim <- compute_df_phylosignal_fromsimulation(results_simulation = res_sim, 
+    		                                                            int = "competition", 
+    		                                                            Smax = pars$Smax,
+    		                                                            sim = successful_sim)
+    		  
+    		df_signal_time <- rbind(df_signal_time, df_phylosign_sim)
+    		
+  		}
+  		
+
+  		
+		}
+		
+		
+	
+	
+	
+df_signal_time_comp <- df_signal_time
+#df_signal_time_comp <- df_signal_time[which(df_signal_time$interaction == "competition"),]
+df_centr_long_comp <- df_centr_long	
+	
+	
+```
+
+
+
+
+# save results
+
+```{r}
+
+# df phylosignal
+
+saveRDS(df_signal_time_fac, here::here("output/phylosignal/facilitation/df_signal_time_fac.rds"))
+saveRDS(df_signal_time_comp, here::here("output/phylosignal/competition/df_signal_time_comp.rds"))
+
+# df centrality-longevity
+
+saveRDS(df_centr_long_fac, here::here("output/phylosignal/facilitation/df_centr_long_fac.rds"))
+saveRDS(df_centr_long_comp, here::here("output/phylosignal/competition/df_centr_long_comp.rds"))
+
+
+# list div rates
+saveRDS(df_div_list_fac, here::here("output/phylosignal/facilitation/df_div_list_fac.rds"))
+saveRDS(df_div_list_comp, here::here("output/phylosignal/competition/df_div_list_comp.rds"))
+
+```
+
+
+
+

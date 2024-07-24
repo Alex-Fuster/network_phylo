@@ -1,0 +1,125 @@
+---
+title: "Plot results from simulations"
+---
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(ggpubr)
+library(ggplot2)
+library(ade4)
+library(ape)
+
+source(here::here("code/functions/function_plot_mean_div.R"))
+source(here::here("code/functions/functions_simulation_inspection.R"))
+```
+
+
+
+# read results
+
+```{r}
+df_signal_time_fac <- readRDS(here::here("output/facilitation/df_signal_time_100sim_fac.rds"))
+df_signal_time_comp <- readRDS(here::here("output/phylosignal/competition/df_signal_time_comp.rds"))
+```
+
+
+
+# Plot results
+
+
+parameters for plotting:
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
+```
+
+
+
+
+## facilitation
+
+```{r}
+
+phylosignal_plot_fac_indiv <- ggplot(df_signal_time_fac, aes(x = nspp, y = phylosign_cor_mean, group = sim)) +
+ # geom_point(alpha = 0.5) + # Adding points for each simulation
+  geom_smooth(method = "gam", se = TRUE, color = "blue") + # Adding GAM trend line with confidence interval
+  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Adding vertical dashed line
+  labs(x = "Species richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+
+# Calculate mean and confidence intervals for each nspp
+summary_df <- df_signal_time_fac %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+phylosignal_plot_fac <- ggplot(summary_df, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
+  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+```
+
+
+
+## Competition
+
+
+```{r}
+
+phylosignal_plot_comp_indiv <- ggplot(df_signal_time_comp, aes(x = nspp, y = phylosign_cor_mean, group = sim)) +
+ # geom_point(alpha = 0.5) + # Adding points for each simulation
+  geom_smooth(method = "gam", se = TRUE, color = "blue") + # Adding GAM trend line with confidence interval
+  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Adding vertical dashed line
+  labs(x = "Species richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+
+# Calculate mean and confidence intervals for each nspp
+summary_df <- df_signal_time_comp %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+phylosignal_plot_comp <- ggplot(summary_df, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
+  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+```

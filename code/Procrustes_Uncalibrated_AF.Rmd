@@ -1,0 +1,625 @@
+---
+title: "Procrustes - Uncalibrated Tree"
+output: html_notebook
+---
+
+
+
+```{r}
+library(ape)
+library(vegan)
+library("igraph")
+library("bipartite")
+library("ape")
+library("RcppEigen")
+library('inline')
+library('magrittr')
+library("phylolm")
+library("ade4")
+library("FactoMineR")
+library("vegan")
+library("dummies")
+library("rnetcarto")
+library("NetIndices")
+library("phylobase")
+library("cluster")
+
+library("funrar")
+library(ggplot2)
+```
+
+
+## Loading Data
+
+### Interactions
+```{r}
+
+###################### Metaweb #######################
+
+#Taxonomy of species
+Taxo <- read.csv2(file = "../Phylo.sig_Gal/Data/Metaweb_taxo.csv")[-c(1:11),2:13]
+
+#Metaweb (Adjacency matrix)
+Metaweb <- read.csv2(file = "../Phylo.sig_Gal/Data/Metaweb_vertebrate_Genus.csv", stringsAsFactors = F, row.names = "X")
+colnames(Metaweb) <- stringi::stri_replace_all(colnames(Metaweb), replacement = " ", regex = "[.]")
+
+
+#Sp list
+#Predators similarity#
+Metaweb_dj_pred <- as.matrix(vegdist(Metaweb[-which(rowSums(Metaweb) == 0),], method = "jac", binary = T)) #Jacquard avec vegan
+Metaweb_dj_pred <- Metaweb_dj_pred[order(rownames(Metaweb_dj_pred)),order(colnames(Metaweb_dj_pred))]
+
+#Create list of predators
+sp_list <- colnames(Metaweb_dj_pred)#stringi::stri_replace_all(colnames(Metaweb_dj_pred), replacement = "_", regex = " ")
+
+
+
+
+###################### Subgroups #######################
+#Species list by group
+Bird <- Taxo[Taxo$Class == "Aves",]
+Mammals <- Taxo[Taxo$Class == "Mammalia",]
+Reptiles <- Taxo[Taxo$Class == "Reptilia",]
+
+
+#Foodweb par groupe
+
+Metaweb.b <- Metaweb[which(rownames(Metaweb) %in% Bird$scientific_name), which(colnames(Metaweb) %in% Bird$scientific_name)]
+Metaweb.m <- Metaweb[which(rownames(Metaweb) %in% Mammals$scientific_name), which(colnames(Metaweb) %in% Mammals$scientific_name)]
+Metaweb.r <- Metaweb[which(rownames(Metaweb) %in% Reptiles$scientific_name), which(colnames(Metaweb) %in% Reptiles$scientific_name)]
+```
+
+
+### Phylogenetic tree
+
+```{r}
+
+###################### Metaweb #######################
+
+phylo.tree <- phylobase::readNexus("../Phylo.sig_Gal/Data/GPS_all_verts.nwk")
+phylo.tree <- as(phylo.tree, "phylo")
+
+#Correct errors in phylo.tree$tip
+phylo.tree$tip.label <- stringi::stri_replace_all(phylo.tree$tip.label, replacement = " ", regex = "_")
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Lasirurs cinereus")] <- "Lasiurus cinereus"
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Microlophus grayi")] <- "Microlophus grayii"
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Microlophis delanonis")] <- "Microlophus delanonis"
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Microlophis bivittatus")] <- "Microlophus bivittatus"
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Microlophis habeli")] <- "Microlophus habelii"
+
+# Drop absent species
+dropme <- phylo.tree$tip.label[!phylo.tree$tip.label %in% sp_list]
+sub.tree <- drop.tip(phylo.tree, dropme)
+
+
+
+
+###################### Subgroups #######################
+
+# Subset of phylo_tree by group
+sub.tree.b <- drop.tip(sub.tree, sub.tree$tip.label[!sub.tree$tip.label %in% Bird$scientific_name])
+sub.tree.m <- drop.tip(sub.tree, sub.tree$tip.label[!sub.tree$tip.label %in% Mammals$scientific_name])
+sub.tree.r <- drop.tip(sub.tree, sub.tree$tip.label[!sub.tree$tip.label %in% Reptiles$scientific_name])
+
+```
+
+
+
+## Decomposition of Adjacency matrix in singular values to obtain traits of interest
+```{r}
+
+###################### Metaweb #######################
+
+
+#compute Singular Value Decomposition
+SVD = svd(Metaweb)
+U = SVD$u
+S = diag(SVD$d)
+Ssqrt = structure(vapply(S, sqrt, numeric(1)),dim=dim(S))
+V = SVD$v
+
+#Obtain traits
+#compute full rank in- and out- traits
+traits_in =  V %*% Ssqrt
+traits_out = U %*% Ssqrt
+#row.names(traits_in) = row.names(traits_out) = names
+traits_in_df = data.frame(traits_in)
+traits_out_df = data.frame(traits_out)
+
+ncol(traits_out_df)
+row.names(traits_out_df) = row.names(Metaweb)
+
+row.names(traits_in_df) = row.names(Metaweb)
+
+
+
+
+
+
+###################### Subgroups #######################
+
+#################### BIRDS
+
+#compute Singular Value Decomposition
+SVD.b = svd(Metaweb.b)
+U.b = SVD.b$u
+S.b = diag(SVD.b$d)
+Ssqrt.b = structure(vapply(S.b, sqrt, numeric(1)),dim=dim(S.b))
+V.b = SVD.b$v
+
+#Obtain traits
+#compute full rank in- and out- traits
+traits_in.b =  V.b %*% Ssqrt.b
+traits_out.b = U.b %*% Ssqrt.b
+#row.names(traits_in) = row.names(traits_out) = names
+traits_in_df.b = data.frame(traits_in.b)
+traits_out_df.b = data.frame(traits_out.b)
+
+ncol(traits_out_df.b)
+row.names(traits_out_df.b) = row.names(Metaweb.b)
+
+
+
+
+
+
+#################### MAMMALS
+
+#compute Singular Value Decomposition
+SVD.m = svd(Metaweb.m)
+U.m = SVD.m$u
+S.m = diag(SVD.m$d)
+Ssqrt.m = structure(vapply(S.m, sqrt, numeric(1)),dim=dim(S.m))
+V.m = SVD.m$v
+
+#Obtain traits
+#compute full rank in- and out- traits
+traits_in.m =  V.m %*% Ssqrt.m
+traits_out.m = U.m %*% Ssqrt.m
+#row.names(traits_in) = row.names(traits_out) = names
+traits_in_df.m = data.frame(traits_in.m)
+traits_out_df.m = data.frame(traits_out.m)
+
+ncol(traits_out_df.m)
+row.names(traits_out_df.m) = row.names(Metaweb.m)
+
+
+
+
+
+
+#################### REPTILES
+
+#compute Singular Value Decomposition
+SVD.r = svd(Metaweb.r)
+U.r = SVD.r$u
+S.r = diag(SVD.r$d)
+Ssqrt.r = structure(vapply(S.r, sqrt, numeric(1)),dim=dim(S.r))
+V.r = SVD.r$v
+
+#Obtain traits
+#compute full rank in- and out- traits
+traits_in.r =  V.r %*% Ssqrt.r
+traits_out.r = U.r %*% Ssqrt.r
+#row.names(traits_in) = row.names(traits_out) = names
+traits_in_df.r = data.frame(traits_in.r)
+traits_out_df.r = data.frame(traits_out.r)
+
+ncol(traits_out_df.r)
+row.names(traits_out_df.r) = row.names(Metaweb.r)
+```
+
+
+
+## Determine number of dimensions (TO DO)
+```{r}
+#choix du nombre de vecteurs singuliers (=traits de pollinisation) a prendre en compte dans la RDA
+singular.values<-SVD$d
+#plot de la somme cumulee de la proportion d'inertie expliquee par les traits
+plot(cumsum(singular.values/sum(singular.values))) # ~90
+#from Dalla Riva
+getElbows(SVD$d[SVD$d > quantile(SVD$d,0.05)]) #-> elbows:  15 44 64
+```
+
+
+# Distance matrix Phylogenetic
+```{r}
+
+###################### Metaweb #######################
+
+# Calcul de la matrice de distance et la mettre en ordre alphabétique
+dist_mat <- cophenetic(sub.tree)
+dist_mat.phy <- dist_mat[order(rownames(dist_mat)),order(colnames(dist_mat))]
+#dist_df.phy<-as.data.frame(dist_mat.phy)
+
+
+
+###################### Subgroups #######################
+
+# Calcul de la matrice de distance
+dist_mat.phy.b <- cophenetic(sub.tree.b)
+dist_mat.phy.b <- dist_mat.phy.b[order(rownames(dist_mat.phy.b)),order(colnames(dist_mat.phy.b))]
+
+dist_mat.phy.m <- cophenetic(sub.tree.m)
+dist_mat.phy.m <- dist_mat.phy.m[order(rownames(dist_mat.phy.m)),order(colnames(dist_mat.phy.m))]
+
+dist_mat.phy.r <- cophenetic(sub.tree.r)
+dist_mat.phy.r <- dist_mat.phy.r[order(rownames(dist_mat.phy.r)),order(colnames(dist_mat.phy.r))]
+```
+
+
+################################################################################################################################
+
+# Loop to analyse how correlation values respond to dimensionality
+
+
+
+## Metaweb
+
+```{r}
+
+############# Select only those species used in phylogenetic analyses
+matched_diets.matrix <- subset(traits_out_df , rownames(traits_out_df) %in% rownames(dist_mat.phy))
+View(matched_diets.matrix)
+
+
+
+
+############# Order phylogenetic_distance dataframe to match rownames order of spp x dimensions (diets) dataframe.
+
+#df.phy_dist<-as.data.frame(phy.corr.vcv) #first convert to a dataframe
+
+ 
+#df.phy_dist.ord1 <- df.phy_dist[match(row.names(matched_diets.matrix),row.names(df.phy_dist)),] #second, we order the rownames as in spp x dimensions matrix (diets matrix).
+
+#mat_ord <- function(mx) mx[, c(rownames(mx), setdiff(colnames(mx), rownames(mx)))] #We match the order of columns with the new rows' order
+~#df.phy_dist.ord2<-mat_ord(df.phy_dist.ord1)
+
+
+
+############# these are the dataframes I will convert into distance matrices and compare
+View(matched_diets.matrix)
+View(dist_df.phy)
+
+
+
+
+
+############# LOOP to create all the mdiet matrices with certain d 
+
+
+#1) create all dataframes with increasing number of d
+
+list.df.diets_d<-list()
+for(i in 1:ncol(matched_diets.matrix)) {       # for-loop over columns
+  list.df.diets_d[[i]] <- matched_diets.matrix[ , 1:i,drop=FALSE]
+}
+class(list.df.diets_d)
+View(list.df.diets_d)
+
+#Check that they are correctly ordered (coinciding with rownames of dist.matrix.phy)
+View(list.df.diets_d[[23]])
+View(dist_df.phy) #these are well matched
+
+
+#2) convert to distance matrices
+#dist.matrix.phy<- daisy(dist_df.phy, metric="euclidean") #already computed distances: dist_df.phy
+
+list.dist.diets_d<-lapply(list.df.diets_d, FUN = daisy) #jaccard for diets
+
+
+# 3) Save distance objects as matrices #dist_df.phy
+list_matrix.distance_diets<-lapply(list.dist.diets_d, FUN = as.matrix)
+matrix.distance_phy<-as.matrix(dist_df.phy)
+
+#Do their rownames and colnames concide?
+
+View(list_matrix.distance_diets[[44]])
+View(matrix.distance_phy)
+
+
+############# Procrustes test 
+
+#trial with one pair
+protest.trial<-protest(list_matrix.distance_diets[[23]],matrix.distance_phy)
+str(protest.trial)
+
+
+list.corr.protest<-list()
+list.corr.protest_sign<-list()
+for(i in 1:length(list_matrix.distance_diets)) {       # for-loop over columns
+  list.corr.protest[[i]] <- protest(list_matrix.distance_diets[[i]],matrix.distance_phy)$t0
+  list.corr.protest_sign[[i]] <- protest(list_matrix.distance_diets[[i]],matrix.distance_phy)$signif
+}
+
+View(list.corr.protest)
+View(list.corr.protest_sign)
+
+# Convert the lists to dataframes
+corr.vector<-unlist(list.corr.protest)
+corr.df<-as.data.frame(corr.vector)
+
+signif.vector<-unlist(list.corr.protest_sign)
+signif.df<-as.data.frame(signif.vector)
+
+# Create column d (dimensions)
+corr.df$d <- 1:nrow(corr.df)
+signif.df$d <- 1:nrow(signif.df)
+#unlist(list.corr.protest)
+
+
+#Merge both dataframes by d
+Dataframe_d_corr<-merge(corr.df, signif.df, by = "d")
+
+
+Dataframe_d_corr$Colour="black"
+# Set new column values to appropriate colours
+Dataframe_d_corr$Colour[Dataframe_d_corr$signif.vector<=0.05]="red"
+Dataframe_d_corr$Colour[Dataframe_d_corr$signif.vector>0.05]="black"
+
+
+Metaweb.corr.d_plot<-ggplot(Dataframe_d_corr, aes(x = d, y = corr.vector)) + 
+  geom_point(col=Dataframe_d_corr$Colour) + geom_line(col="red") 
+```
+
+## Metaweb BIRDS
+```{r}
+############# Select only those species used in phylogenetic analyses
+matched_diets.matrix.b <- subset(traits_out_df.b , rownames(traits_out_df.b) %in% rownames(dist_mat.phy.b))
+View(matched_diets.matrix.b)
+
+############# these are the dataframes I will convert into distance matrices and compare
+View(matched_diets.matrix.b)
+View(dist_mat.phy.b)
+
+
+############# LOOP to create all the mdiet matrices with certain d 
+
+#1) create all dataframes with increasing number of d
+
+list.df.diets_d.b<-list()
+for(i in 1:ncol(matched_diets.matrix.b)) {       # for-loop over columns
+  list.df.diets_d.b[[i]] <- matched_diets.matrix.b[ , 1:i,drop=FALSE]
+}
+
+View(list.df.diets_d.b)
+
+#Check that they are correctly ordered (coinciding with rownames of dist.matrix.phy)
+View(list.df.diets_d.b[[23]])
+View(dist_mat.phy.b) #these are well matched
+
+
+#2) convert to distance matrices
+#dist.matrix.phy.b<- daisy(dist_mat.phy.b, metric="euclidean")
+
+list.dist.diets_d.b<-lapply(list.df.diets_d.b, FUN = daisy)
+
+
+# 3) Save distance objects as matrices
+list_matrix.distance_diets.b<-lapply(list.dist.diets_d.b, FUN = as.matrix)
+matrix.distance_phy.b<-as.matrix(dist_mat.phy.b)
+
+#Do their rownames and colnames concide?
+
+View(list_matrix.distance_diets.b[[10]])
+View(matrix.distance_phy.b)
+
+
+############# Procrustes test 
+
+#trial with one pair
+#protest.trial.b<-protest(list_matrix.distance_diets.b[[23]],matrix.distance_phy.b)
+
+
+list.corr.protest.b<-list()
+list.corr.protest_sign.b<-list()
+for(i in 1:length(list_matrix.distance_diets.b)) {       # for-loop over columns
+  list.corr.protest.b[[i]] <- protest(list_matrix.distance_diets.b[[i]],matrix.distance_phy.b)$t0
+  list.corr.protest_sign.b[[i]] <- protest(list_matrix.distance_diets.b[[i]],matrix.distance_phy.b)$signif
+}
+
+View(list.corr.protest.b)
+View(list.corr.protest_sign.b)
+
+# Convert the lists to dataframes
+corr.vector.b<-unlist(list.corr.protest.b)
+corr.df.b<-as.data.frame(corr.vector.b)
+
+signif.vector.b<-unlist(list.corr.protest_sign.b)
+signif.df.b<-as.data.frame(signif.vector.b)
+
+# Create column d (dimensions)
+corr.df.b$d <- 1:nrow(corr.df.b)
+signif.df.b$d <- 1:nrow(signif.df.b)
+#unlist(list.corr.protest)
+
+
+#Merge both dataframes by d
+Dataframe_d_corr.b<-merge(corr.df.b, signif.df.b, by = "d")
+
+
+Dataframe_d_corr.b$Colour="black"
+# Set new column values to appropriate colours
+Dataframe_d_corr.b$Colour[Dataframe_d_corr.b$signif.vector<=0.05]="red"
+Dataframe_d_corr.b$Colour[Dataframe_d_corr.b$signif.vector>0.05]="black"
+
+
+Metaweb.corr.d_plot.b<-ggplot(Dataframe_d_corr.b, aes(x = d, y = corr.vector.b)) + 
+  geom_point(col=Dataframe_d_corr.b$Colour) + geom_line(col="red") 
+```
+
+
+## Metaweb MAMMALS
+```{r}
+############# Select only those species used in phylogenetic analyses
+matched_diets.matrix.m <- subset(traits_out_df.m , rownames(traits_out_df.m) %in% rownames(dist_mat.phy.m))
+View(matched_diets.matrix.m)
+
+############# these are the dataframes I will convert into distance matrices and compare
+View(matched_diets.matrix.m)
+View(dist_mat.phy.m)
+
+
+############# LOOP to create all the mdiet matrices with certain d 
+
+#1) create all dataframes with increasing number of d
+
+list.df.diets_d.m<-list()
+for(i in 1:ncol(matched_diets.matrix.m)) {       # for-loop over columns
+  list.df.diets_d.m[[i]] <- matched_diets.matrix.m[ , 1:i,drop=FALSE]
+}
+
+View(list.df.diets_d.m)
+
+#Check that they are correctly ordered (coinciding with rownames of dist.matrix.phy)
+View(list.df.diets_d.m[[23]])
+View(dist_mat.phy.m) #these are well matched
+
+
+#2) convert to distance matrices
+#dist.matrix.phy.m<- daisy(dist_mat.phy.m, metric="euclidean")
+
+list.dist.diets_d.m<-lapply(list.df.diets_d.m, FUN = daisy)
+
+
+# 3) Save distance objects as matrices
+list_matrix.distance_diets.m<-lapply(list.dist.diets_d.m, FUN = as.matrix)
+matrix.distance_phy.m<-as.matrix(dist_mat.phy.m)
+
+#Do their rownames and colnames concide?
+
+View(list_matrix.distance_diets.m[[3]])
+View(matrix.distance_phy.m)
+
+
+############# Procrustes test 
+
+#trial with one pair
+#protest.trial.m<-protest(list_matrix.distance_diets.m[[23]],matrix.distance_phy.m)
+
+
+list.corr.protest.m<-list()
+list.corr.protest_sign.m<-list()
+for(i in 1:length(list_matrix.distance_diets.m)) {       # for-loop over columns
+  list.corr.protest.m[[i]] <- protest(list_matrix.distance_diets.m[[i]],matrix.distance_phy.m)$t0
+  list.corr.protest_sign.m[[i]] <- protest(list_matrix.distance_diets.m[[i]],matrix.distance_phy.m)$signif
+}
+
+View(list.corr.protest.m)
+View(list.corr.protest_sign.m)
+
+# Convert the lists to dataframes
+corr.vector.m<-unlist(list.corr.protest.m)
+corr.df.m<-as.data.frame(corr.vector.m)
+
+signif.vector.m<-unlist(list.corr.protest_sign.m)
+signif.df.m<-as.data.frame(signif.vector.m)
+
+# Create column d (dimensions)
+corr.df.m$d <- 1:nrow(corr.df.m)
+signif.df.m$d <- 1:nrow(signif.df.m)
+#unlist(list.corr.protest)
+
+
+#Merge both dataframes by d
+Dataframe_d_corr.m<-merge(corr.df.m, signif.df.m, by = "d")
+
+
+Dataframe_d_corr.m$Colour="black"
+# Set new column values to appropriate colours
+Dataframe_d_corr.m$Colour[Dataframe_d_corr.m$signif.vector<=0.05]="red"
+Dataframe_d_corr.m$Colour[Dataframe_d_corr.m$signif.vector>0.05]="black"
+
+
+Metaweb.corr.d_plot.m<-ggplot(Dataframe_d_corr.m, aes(x = d, y = corr.vector.m)) + 
+  geom_point(col=Dataframe_d_corr.m$Colour) + geom_line(col="red")
+```
+
+
+## Metaweb REPTILES
+```{r}
+############# Select only those species used in phylogenetic analyses
+matched_diets.matrix.r <- subset(traits_out_df.r , rownames(traits_out_df.r) %in% rownames(dist_mat.phy.r))
+View(matched_diets.matrix.r)
+
+############# these are the dataframes I will convert into distance matrices and compare
+View(matched_diets.matrix.r)
+View(dist_mat.phy.r)
+
+
+############# LOOP to create all the mdiet matrices with certain d 
+
+#1) create all dataframes with increasing number of d
+
+list.df.diets_d.r<-list()
+for(i in 1:ncol(matched_diets.matrix.r)) {       # for-loop over columns
+  list.df.diets_d.r[[i]] <- matched_diets.matrix.r[ , 1:i,drop=FALSE]
+}
+
+View(list.df.diets_d.r)
+
+#Check that they are correctly ordered (coinciding with rownames of dist.ratrix.phy)
+View(list.df.diets_d.r[[23]])
+View(dist_mat.phy.r) #these are well matched
+
+
+#2) convert to distance matrices
+#dist.matrix.phy.r<- daisy(dist_mat.phy.r, metric="euclidean")
+
+list.dist.diets_d.r<-lapply(list.df.diets_d.r, FUN = daisy)
+
+
+# 3) Save distance objects as matrices
+list_matrix.distance_diets.r<-lapply(list.dist.diets_d.r, FUN = as.matrix)
+matrix.distance_phy.r<-as.matrix(dist_mat.phy.r)
+
+#Do their rownames and colnames concide?
+
+View(list_matrix.distance_diets.r[[3]])
+View(matrix.distance_phy.r)
+
+
+############# Procrustes test 
+
+#trial with one pair
+#protest.trial.r<-protest(list_matrix.distance_diets.r[[23]],matrix.distance_phy.r)
+
+
+list.corr.protest.r<-list()
+list.corr.protest_sign.r<-list()
+for(i in 1:length(list_matrix.distance_diets.r)) {       # for-loop over columns
+  list.corr.protest.r[[i]] <- protest(list_matrix.distance_diets.r[[i]],matrix.distance_phy.r)$t0
+  list.corr.protest_sign.r[[i]] <- protest(list_matrix.distance_diets.r[[i]],matrix.distance_phy.r)$signif
+}
+
+View(list.corr.protest.r)
+View(list.corr.protest_sign.r)
+
+# Convert the lists to dataframes
+corr.vector.r<-unlist(list.corr.protest.r)
+corr.df.r<-as.data.frame(corr.vector.r)
+
+signif.vector.r<-unlist(list.corr.protest_sign.r)
+signif.df.r<-as.data.frame(signif.vector.r)
+
+# Create column d (dimensions)
+corr.df.r$d <- 1:nrow(corr.df.r)
+signif.df.r$d <- 1:nrow(signif.df.r)
+#unlist(list.corr.protest)
+
+
+#Merge both dataframes by d
+Dataframe_d_corr.r<-merge(corr.df.r, signif.df.r, by = "d")
+
+
+Dataframe_d_corr.r$Colour="black"
+# Set new column values to appropriate colours
+Dataframe_d_corr.r$Colour[Dataframe_d_corr.r$signif.vector<=0.05]="red"
+Dataframe_d_corr.r$Colour[Dataframe_d_corr.r$signif.vector>0.05]="black"
+
+
+Metaweb.corr.d_plot.r<-ggplot(Dataframe_d_corr.r, aes(x = d, y = corr.vector.r)) + 
+  geom_point(col=Dataframe_d_corr.r$Colour) + geom_line(col="red")
+```
+
+

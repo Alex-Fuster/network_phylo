@@ -1,0 +1,328 @@
+#NEXUS
+begin taxa;
+	dimensions ntax=226;
+	taxlabels
+	Actitis_macularius
+	Amblyrhynchus_cristatus
+	Anas_bahamensis
+	Anas_clypeata
+	Anas_cyanoptera
+	Anas_discors
+	Anas_platyrhynchos
+	Anous_stolidus
+	Anser_anser
+	Aphriza_virgata
+	Ardea_alba
+	Ardea_herodias
+	Arenaria_interpres
+	Arenaria_melanocephala
+	Asio_flammeus
+	Bombycilla_cedrorum
+	Bos_taurus
+	Bubulcus_ibis
+	Buteo_galapagoensis
+	Butorides_striata
+	Butorides_sundevalli
+	Butorides_virescens
+	Calidris_alba
+	Calidris_bairdii
+	Calidris_canutus
+	Calidris_fuscicollis
+	Calidris_himantopus
+	Calidris_mauri
+	Calidris_melanotos
+	Calidris_minutilla
+	Calidris_pusilla
+	Camarhynchus_heliobates
+	Camarhynchus_pallidus
+	Camarhynchus_parvulus
+	Camarhynchus_pauper
+	Camarhynchus_psittacula
+	Canis_lupus
+	Capra_hircus
+	Certhidea_fusca
+	Certhidea_olivacea
+	Chaetura_pelagica
+	Charadrius_semipalmatus
+	Charadrius_vociferus
+	Charadrius_wilsonia
+	Chelonia_mydas
+	Chelonoidis_chathamensis
+	Chelonoidis_niger
+	Chlidonias_niger
+	Chordeiles_minor
+	Chroicocephalus_cirrocephalus
+	Coccyzus_erythropthalmus
+	Coccyzus_lansbergi
+	Coccyzus_melacoryphus
+	Coereba_flaveola
+	Columba_livia
+	Conolophus_marthae
+	Conolophus_pallidus
+	Conolophus_subcristatus
+	Coturnix_coturnix
+	Creagrus_furcatus
+	Crotophaga_ani
+	Daption_capense
+	Dendrocygna_autumnalis
+	Diomedea_epomophora
+	Diomedea_exulans
+	Dolichonyx_oryzivorus
+	Egretta_caerulea
+	Egretta_thula
+	Egretta_tricolor
+	Equus_asinus
+	Equus_caballus
+	Falco_peregrinus
+	Felis_catus
+	Fregata_magnificens
+	Fregata_minor
+	Fregetta_grallaria
+	Fulica_americana
+	Fulmarus_glacialoides
+	Gallinula_galeata
+	Gallus_gallus
+	Geospiza_acutirostris
+	Geospiza_conirostris
+	Geospiza_difficilis
+	Geospiza_fortis
+	Geospiza_fuliginosa
+	Geospiza_magnirostris
+	Geospiza_propinqua
+	Geospiza_scandens
+	Geospiza_septentrionalis
+	Gygis_alba
+	Haematopus_ostralegus
+	Haematopus_palliatus
+	Himantopus_mexicanus
+	Hirundo_rustica
+	Lampropeltis_triangulum
+	Larosterna_inca
+	Larus_delawarensis
+	Larus_dominicanus
+	Lasirurs_cinereus
+	Lasiurus_blossevillii
+	Laterallus_spilonota
+	Leucophaeus_atricilla
+	Leucophaeus_fuliginosus
+	Leucophaeus_pipixcan
+	Leucophaeus_scoresbii
+	Limnodromus_griseus
+	Limosa_fedoa
+	Limosa_haemastica
+	Macronectes_giganteus
+	Macronectes_halli
+	Megaceryle_alcyon
+	Meleagris_gallopavo
+	Microlophis_bivittatus
+	Microlophis_delanonis
+	Microlophis_habeli
+	Microlophus_albemarlensis
+	Microlophus_duncanensis
+	Microlophus_grayi
+	Microlophus_indefatigabilis
+	Microlophus_jacobi
+	Microlophus_pacificus
+	Mimus_macdonaldi
+	Mimus_melanotis
+	Mimus_parvulus
+	Mimus_trifasciatus
+	Mus_musculus
+	Myiarchus_magnirostris
+	Neocrex_erythrops
+	Nesoryzomys_swarthi
+	Nomonyx_dominicus
+	Numenius_phaeopus
+	Numida_meleagris
+	Nyctanassa_violacea
+	Nycticorax_nycticorax
+	Oceanites_gracilis
+	Oceanodroma_castro
+	Oceanodroma_hornbyi
+	Oceanodroma_leucorhoa
+	Oceanodroma_markhami
+	Oceanodroma_melania
+	Oceanodroma_tethys
+	Onychoprion_fuscatus
+	Oreopholus_ruficollis
+	Oryzomys_galapagoensis
+	Pachyptila_desolata
+	Pandion_haliaetus
+	Parkesia_noveboracensis
+	Passerina_cyanea
+	Pavo_muticus
+	Pelagodroma_marina
+	Pelecanus_occidentalis
+	Petrochelidon_pyrrhonota
+	Phaethon_aethereus
+	Phaethon_rubricauda
+	Phalacrocorax_harrisi
+	Phalaropus_fulicarius
+	Phalaropus_lobatus
+	Phalaropus_tricolor
+	Pheucticus_ludovicianus
+	Phoebastria_irrorata
+	Phoebastria_nigripes
+	Phoenicopterus_chilensis
+	Phoenicopterus_ruber
+	Piranga_olivacea
+	Piranga_rubra
+	Platyspiza_crassirostris
+	Pluvialis_dominica
+	Pluvialis_fulva
+	Pluvialis_squatarola
+	Podilymbus_podiceps
+	Porphyrio_martinicus
+	Porzana_carolina
+	Procellaria_parkinsoni
+	Progne_modesta
+	Progne_subis
+	Progne_tapera
+	Protonotaria_citrea
+	Pseudalsophis_biserialis
+	Psittacara_erythrogenys
+	Pterodroma_inexpectata
+	Pterodroma_leucoptera
+	Pterodroma_phaeopygia
+	Puffinus_carneipes
+	Puffinus_creatopus
+	Puffinus_griseus
+	Puffinus_pacificus
+	Puffinus_subalaris
+	Pyrocephalus_dubius
+	Pyrocephalus_nanus
+	Quiscalus_mexicanus
+	Rattus_norvegicus
+	Rattus_rattus
+	Riparia_riparia
+	Setophaga_petechia
+	Setophaga_ruticilla
+	Setophaga_striata
+	Sicalis_flaveola
+	Spheniscus_mendiculus
+	Stercorarius_chilensis
+	Stercorarius_longicaudus
+	Stercorarius_maccormicki
+	Stercorarius_parasiticus
+	Stercorarius_pomarinus
+	Sterna_hirundo
+	Sula_granti
+	Sula_leucogaster
+	Sula_nebouxii
+	Sula_sula
+	Sula_variegata
+	Sus_scrofa
+	Thalassarche_melanophris
+	Thalasseus_elegans
+	Thalasseus_maximus
+	Tringa_flavipes
+	Tringa_incana
+	Tringa_melanoleuca
+	Tringa_semipalmata
+	Tringa_solitaria
+	Tryngites_subruficollis
+	Tyrannus_savana
+	Tyrannus_tyrannus
+	Tyto_alba
+	Vireo_olivaceus
+	Zalophus_wollebaeki
+	Zenaida_auriculata
+	Zenaida_galapagoensis
+;
+end;
+
+begin trees;
+	tree tree_1 = [&R] ((((((Sus_scrofa:1.0,(Capra_hircus:1.0,Bos_taurus:1.0):1.0):1.0,(Equus_asinus:1.0,Equus_caballus:1.0):1.0):1.0,(Felis_catus:1.0,(Canis_lupus:1.0,Zalophus_wollebaeki:1.0):1.0):1.0):1.0,(Lasiurus_blossevillii:1.0,Lasirurs_cinereus:1.0):1.0):1.0,((Mus_musculus:1.0,(Rattus_norvegicus:1.0,Rattus_rattus:1.0):1.0):1.0,(Nesoryzomys_swarthi:1.0,Oryzomys_galapagoensis:1.0):1.0):1.0):1.0,((((((Coturnix_coturnix:1.0,Meleagris_gallopavo:1.0):1.0,(Pavo_muticus:1.0,Gallus_gallus:1.0):1.0):1.0,Numida_meleagris:1.0):1.0,((((Anas_bahamensis:1.0,Anas_platyrhynchos:1.0):1.0,(Anas_clypeata:1.0,(Anas_cyanoptera:1.0,Anas_discors:1.0):1.0):1.0):1.0,(Anser_anser:1.0,Nomonyx_dominicus:1.0):1.0):1.0,Dendrocygna_autumnalis:1.0):1.0):1.0,((Chaetura_pelagica:1.0,Chordeiles_minor:1.0):1.0,((Crotophaga_ani:1.0,(Coccyzus_erythropthalmus:1.0,(Coccyzus_lansbergi:1.0,Coccyzus_melacoryphus:1.0):1.0):1.0):1.0,(((((((Hirundo_rustica:1.0,Petrochelidon_pyrrhonota:1.0):1.0,(Riparia_riparia:1.0,((Progne_modesta:1.0,Progne_tapera:1.0):1.0,Progne_subis:1.0):1.0):1.0):1.0,(((Mimus_macdonaldi:1.0,Mimus_melanotis:1.0):1.0,(Mimus_parvulus:1.0,Mimus_trifasciatus:1.0):1.0):1.0,Bombycilla_cedrorum:1.0):1.0):1.0,(Vireo_olivaceus:1.0,(((((((((Camarhynchus_heliobates:1.0,(((Camarhynchus_parvulus:1.0,Camarhynchus_pauper:1.0):1.0,Camarhynchus_pallidus:1.0):1.0,Camarhynchus_psittacula:1.0):1.0):1.0,Platyspiza_crassirostris:1.0):1.0,Geospiza_difficilis:1.0):1.0,(Certhidea_fusca:1.0,Certhidea_olivacea:1.0):1.0):1.0,Coereba_flaveola:1.0):1.0,(Geospiza_septentrionalis:1.0,((Geospiza_fortis:1.0,Geospiza_acutirostris:1.0):1.0,((Geospiza_fuliginosa:1.0,Geospiza_conirostris:1.0):1.0,(Geospiza_magnirostris:1.0,(Geospiza_scandens:1.0,Geospiza_propinqua:1.0):1.0):1.0):1.0):1.0):1.0):1.0,Sicalis_flaveola:1.0):1.0,(Piranga_olivacea:1.0,Piranga_rubra:1.0):1.0):1.0,((Passerina_cyanea:1.0,Pheucticus_ludovicianus:1.0):1.0,((Dolichonyx_oryzivorus:1.0,Quiscalus_mexicanus:1.0):1.0,((((Setophaga_petechia:1.0,Setophaga_striata:1.0):1.0,Setophaga_ruticilla:1.0):1.0,Parkesia_noveboracensis:1.0):1.0,Protonotaria_citrea:1.0):1.0):1.0):1.0):1.0):1.0):1.0,((Myiarchus_magnirostris:1.0,(Tyrannus_savana:1.0,Tyrannus_tyrannus:1.0):1.0):1.0,(Pyrocephalus_dubius:1.0,Pyrocephalus_nanus:1.0):1.0):1.0):1.0,(Megaceryle_alcyon:1.0,Psittacara_erythrogenys:1.0,(Asio_flammeus:1.0,Tyto_alba:1.0):1.0):1.0):1.0,((Columba_livia:1.0,(Zenaida_auriculata:1.0,Zenaida_galapagoensis:1.0):1.0):1.0,((Phoenicopterus_chilensis:1.0,Phoenicopterus_ruber:1.0):1.0,Podilymbus_podiceps:1.0):1.0,((((Fulica_americana:1.0,Gallinula_galeata:1.0):1.0,((Porzana_carolina:1.0,Laterallus_spilonota:1.0):1.0,Porphyrio_martinicus:1.0):1.0):1.0,Neocrex_erythrops:1.0):1.0,(((Phaethon_aethereus:1.0,Phaethon_rubricauda:1.0):1.0,(Pelecanus_occidentalis:1.0,((((Ardea_alba:1.0,Ardea_herodias:1.0):1.0,(Bubulcus_ibis:1.0,((Butorides_striata:1.0,Butorides_sundevalli:1.0):1.0,Butorides_virescens:1.0):1.0):1.0):1.0,((Egretta_caerulea:1.0,Egretta_tricolor:1.0):1.0,Egretta_thula:1.0):1.0):1.0,(Nyctanassa_violacea:1.0,Nycticorax_nycticorax:1.0):1.0):1.0):1.0):1.0,((Fregata_magnificens:1.0,Fregata_minor:1.0):1.0,(Phalacrocorax_harrisi:1.0,(Sula_sula:1.0,(Sula_leucogaster:1.0,(Sula_granti:1.0,(Sula_nebouxii:1.0,Sula_variegata:1.0):1.0):1.0):1.0):1.0):1.0):1.0):1.0,(Falco_peregrinus:1.0,(Buteo_galapagoensis:1.0,Pandion_haliaetus:1.0):1.0):1.0,(((((((((Chlidonias_niger:1.0,Larosterna_inca:1.0):1.0,Onychoprion_fuscatus:1.0):1.0,((Sterna_hirundo:1.0,(Thalasseus_elegans:1.0,Thalasseus_maximus:1.0):1.0):1.0):1.0):1.0,Gygis_alba:1.0):1.0,Anous_stolidus:1.0,((Chroicocephalus_cirrocephalus:1.0,((Larus_delawarensis:1.0,Larus_dominicanus:1.0):1.0,((Leucophaeus_atricilla:1.0,Leucophaeus_fuliginosus:1.0):1.0,(Leucophaeus_pipixcan:1.0,Leucophaeus_scoresbii:1.0):1.0):1.0):1.0):1.0,Creagrus_furcatus:1.0):1.0):1.0,((Stercorarius_longicaudus:1.0,Stercorarius_parasiticus:1.0):1.0,(Stercorarius_pomarinus:1.0,(Stercorarius_chilensis:1.0,Stercorarius_maccormicki:1.0):1.0):1.0):1.0):1.0,(Numenius_phaeopus:1.0,(Limnodromus_griseus:1.0,((Limosa_fedoa:1.0,Limosa_haemastica:1.0):1.0,((Arenaria_interpres:1.0,Arenaria_melanocephala:1.0):1.0,(Tryngites_subruficollis:1.0,(Aphriza_virgata:1.0,(((Calidris_bairdii:1.0,Calidris_himantopus:1.0):1.0,(((Calidris_mauri:1.0,Calidris_pusilla:1.0):1.0,Calidris_melanotos:1.0):1.0,((Calidris_alba:1.0,Calidris_fuscicollis:1.0):1.0,Calidris_minutilla:1.0):1.0):1.0):1.0,Calidris_canutus:1.0):1.0):1.0):1.0,(((Phalaropus_fulicarius:1.0,Phalaropus_lobatus:1.0):1.0,Phalaropus_tricolor:1.0):1.0,(Actitis_macularius:1.0,(((Tringa_incana:1.0,Tringa_melanoleuca:1.0):1.0,(Tringa_flavipes:1.0,Tringa_semipalmata:1.0):1.0):1.0,Tringa_solitaria:1.0):1.0):1.0):1.0):1.0):1.0):1.0):1.0):1.0,(((Haematopus_ostralegus:1.0,Haematopus_palliatus:1.0):1.0,Himantopus_mexicanus:1.0):1.0,((Oreopholus_ruficollis:1.0,((Charadrius_semipalmatus:1.0,Charadrius_vociferus:1.0):1.0,Charadrius_wilsonia:1.0):1.0):1.0,((Pluvialis_dominica:1.0,Pluvialis_fulva:1.0):1.0,Pluvialis_squatarola:1.0):1.0):1.0):1.0):1.0,(Spheniscus_mendiculus:1.0,((((((Fulmarus_glacialoides:1.0,(Macronectes_giganteus:1.0,Macronectes_halli:1.0):1.0):1.0,Daption_capense:1.0):1.0,(((Pterodroma_inexpectata:1.0,Pterodroma_leucoptera:1.0,Pterodroma_phaeopygia:1.0):1.0,Pachyptila_desolata:1.0):1.0,(Procellaria_parkinsoni:1.0,((((Puffinus_carneipes:1.0,Puffinus_creatopus:1.0):1.0,Puffinus_griseus:1.0):1.0,Puffinus_pacificus:1.0):1.0,Puffinus_subalaris:1.0):1.0):1.0):1.0):1.0,((Oceanodroma_castro:1.0,(Oceanodroma_leucorhoa:1.0,Oceanodroma_hornbyi:1.0):1.0):1.0,((Oceanodroma_melania:1.0,Oceanodroma_markhami:1.0):1.0,Oceanodroma_tethys:1.0):1.0):1.0):1.0,(Fregetta_grallaria:1.0,(Oceanites_gracilis:1.0,Pelagodroma_marina:1.0):1.0):1.0):1.0,((Thalassarche_melanophris:1.0,(Diomedea_epomophora:1.0,Diomedea_exulans:1.0):1.0):1.0,(Phoebastria_irrorata:1.0,Phoebastria_nigripes:1.0):1.0):1.0):1.0):1.0):1.0):1.0):1.0):1.0):1.0):1.0):1.0,(Chelonia_mydas:1.0,(Chelonoidis_niger:1.0,Chelonoidis_chathamensis:1.0):1.0):1.0,((((((Microlophus_albemarlensis:1.0,Microlophus_pacificus:1.0):1.0,Microlophus_grayi:1.0):1.0,((Microlophus_duncanensis:1.0,Microlophus_jacobi:1.0):1.0,Microlophus_indefatigabilis:1.0):1.0):1.0,Microlophis_delanonis:1.0):1.0,(Microlophis_bivittatus:1.0,Microlophis_habeli:1.0):1.0):1.0,((Amblyrhynchus_cristatus:1.0,(Conolophus_marthae:1.0,(Conolophus_pallidus:1.0,Conolophus_subcristatus:1.0):1.0):1.0):1.0,(Pseudalsophis_biserialis:1.0,Lampropeltis_triangulum:1.0):1.0):1.0):1.0):1.0);
+end;
+
+begin figtree;
+	set appearance.backgroundColorAttribute="Default";
+	set appearance.backgroundColour=#ffffff;
+	set appearance.branchColorAttribute="User selection";
+	set appearance.branchColorGradient=false;
+	set appearance.branchLineWidth=1.0;
+	set appearance.branchMinLineWidth=0.0;
+	set appearance.branchWidthAttribute="Fixed";
+	set appearance.foregroundColour=#000000;
+	set appearance.hilightingGradient=false;
+	set appearance.selectionColour=#2d3680;
+	set branchLabels.colorAttribute="User selection";
+	set branchLabels.displayAttribute="Branch times";
+	set branchLabels.fontName="sansserif";
+	set branchLabels.fontSize=8;
+	set branchLabels.fontStyle=0;
+	set branchLabels.isShown=false;
+	set branchLabels.significantDigits=4;
+	set layout.expansion=1000;
+	set layout.layoutType="RECTILINEAR";
+	set layout.zoom=0;
+	set legend.attribute=null;
+	set legend.fontSize=10.0;
+	set legend.isShown=false;
+	set legend.significantDigits=4;
+	set nodeBars.barWidth=4.0;
+	set nodeBars.displayAttribute=null;
+	set nodeBars.isShown=false;
+	set nodeLabels.colorAttribute="User selection";
+	set nodeLabels.displayAttribute="Node ages";
+	set nodeLabels.fontName="sansserif";
+	set nodeLabels.fontSize=8;
+	set nodeLabels.fontStyle=0;
+	set nodeLabels.isShown=false;
+	set nodeLabels.significantDigits=4;
+	set nodeShapeExternal.colourAttribute=null;
+	set nodeShapeExternal.isShown=false;
+	set nodeShapeExternal.minSize=10.0;
+	set nodeShapeExternal.scaleType=Width;
+	set nodeShapeExternal.shapeType=Circle;
+	set nodeShapeExternal.size=4.0;
+	set nodeShapeExternal.sizeAttribute=null;
+	set nodeShapeInternal.colourAttribute=null;
+	set nodeShapeInternal.isShown=false;
+	set nodeShapeInternal.minSize=10.0;
+	set nodeShapeInternal.scaleType=Width;
+	set nodeShapeInternal.shapeType=Circle;
+	set nodeShapeInternal.size=4.0;
+	set nodeShapeInternal.sizeAttribute=null;
+	set polarLayout.alignTipLabels=false;
+	set polarLayout.angularRange=0;
+	set polarLayout.rootAngle=0;
+	set polarLayout.rootLength=100;
+	set polarLayout.showRoot=true;
+	set radialLayout.spread=0.0;
+	set rectilinearLayout.alignTipLabels=false;
+	set rectilinearLayout.curvature=0;
+	set rectilinearLayout.rootLength=100;
+	set scale.offsetAge=0.0;
+	set scale.rootAge=1.0;
+	set scale.scaleFactor=1.0;
+	set scale.scaleRoot=false;
+	set scaleAxis.automaticScale=true;
+	set scaleAxis.fontSize=8.0;
+	set scaleAxis.isShown=false;
+	set scaleAxis.lineWidth=1.0;
+	set scaleAxis.majorTicks=1.0;
+	set scaleAxis.minorTicks=0.5;
+	set scaleAxis.origin=0.0;
+	set scaleAxis.reverseAxis=false;
+	set scaleAxis.showGrid=true;
+	set scaleBar.automaticScale=true;
+	set scaleBar.fontSize=10.0;
+	set scaleBar.isShown=false;
+	set scaleBar.lineWidth=1.0;
+	set scaleBar.scaleRange=3.0;
+	set tipLabels.colorAttribute="User selection";
+	set tipLabels.displayAttribute="Names";
+	set tipLabels.fontName="sansserif";
+	set tipLabels.fontSize=14;
+	set tipLabels.fontStyle=0;
+	set tipLabels.isShown=true;
+	set tipLabels.significantDigits=4;
+	set trees.order=false;
+	set trees.orderType="increasing";
+	set trees.rooting=false;
+	set trees.rootingType="User Selection";
+	set trees.transform=false;
+	set trees.transformType="cladogram";
+end;
+

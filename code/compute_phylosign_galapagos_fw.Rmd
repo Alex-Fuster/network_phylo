@@ -1,0 +1,519 @@
+---
+title: "compute phylogenetic signal in Galapagos foodwebs"
+
+---
+
+
+
+```{r}
+library(ape)
+library(vegan)
+library("bipartite")
+library("ape")
+library("RcppEigen")
+library('inline')
+library('magrittr')
+library("phylolm")
+library("ade4")
+library("FactoMineR")
+library("vegan")
+library("rnetcarto")
+library("NetIndices")
+library("phylobase")
+library("cluster")
+library(igraph)
+library(aricode)
+library("funrar")
+library(ggplot2)
+library(tidyr)
+library(readxl)
+library(dplyr)
+library(tidyr)
+
+
+source(here::here("code/functions/functions_phylosignal.R")) 
+```
+
+
+Load data
+
+```{r}
+metaweb_pariles <- readRDS(here::here("data/foodweb_galapagos/Metaweb_pariles_vertebrate_Genus.RDS"))
+sp_list <- readRDS(here::here("data/foodweb_galapagos/sp_list.RDS"))
+Taxo <- read.csv2(here::here("data/foodweb_galapagos/Metaweb_taxo.csv"))[-c(1:11),2:13]
+phylo.tree <- phylobase::readNexus(here::here("data/foodweb_galapagos/GPS_all_verts.nwk"))
+phylo.tree <- as(phylo.tree, "phylo")
+```
+
+
+Correct errors in phylogenetic tree
+
+```{r}
+phylo.tree$tip.label <- stringi::stri_replace_all(phylo.tree$tip.label, replacement = " ", regex = "_")
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Lasirurs cinereus")] <- "Lasiurus cinereus"
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Microlophus grayi")] <- "Microlophus grayii"
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Microlophis delanonis")] <- "Microlophus delanonis"
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Microlophis bivittatus")] <- "Microlophus bivittatus"
+phylo.tree$tip.label[which(phylo.tree$tip.label == "Microlophis habeli")] <- "Microlophus habelii"
+
+# Drop absent species
+dropme <- phylo.tree$tip.label[!phylo.tree$tip.label %in% sp_list]
+sub.tree <- drop.tip(phylo.tree, dropme)
+```
+
+
+
+## Loop to compute phylogenetic signal for each island foodweb
+
+```{r}
+
+
+df_phylosign <- data.frame(matrix(ncol = 13,
+                                  nrow = 0, 
+                                  dimnames = list(NULL, c("island",
+                                                          "cor_mean",
+                                                          "sign_mean",
+                                                          "cor_pred",
+                                                          "sign_pred",
+                                                          "cor_prey",
+                                                          "sign_prey",
+                                                          "fw_matrix",
+                                                          "subtree",
+                                                          "distmat_phylo_dist",
+                                                          "distmat_int_dist_mean",
+                                                          "distmat_int_dist_pred",
+                                                          "distmat_int_dist_prey"))))
+
+for (i in unique(names(metaweb_pariles))) {
+  
+  ## Get the island network and name
+  island <- names(metaweb_pariles[i])
+  matrix_int <- metaweb_pariles[[i]]
+  
+  # Compute tree subsetting by spp present in the island
+  sub.tree_island <- drop.tip(sub.tree, sub.tree$tip.label[!sub.tree$tip.label %in% colnames(matrix_int)])
+  
+  # Compute phylogenetic distance matrix
+  mat_phylo_dist <- cophenetic.phylo(sub.tree_island)
+  
+  # Compute interaction distance matrices
+  mat_int_dist_pred <- matrix_int |> 
+    compute_nmi_aricode_pred() |> # compute interaction distances
+    diag_to0() |>  # diagonal to 0
+    convet_nan_to_0_matrix(marg = 2) # convert all NaN to 0
+  
+  mat_int_dist_prey <- matrix_int |>
+    compute_nmi_aricode_prey() |>
+    diag_to0() |>
+    convet_nan_to_0_matrix(marg = 2)
+  
+  mat_int_dist_mean <- (mat_int_dist_pred + mat_int_dist_prey) / 2
+  
+  # Retain only species that are present in the tree
+  mat_int_dist_mean <- mat_int_dist_mean[rownames(mat_phylo_dist), colnames(mat_phylo_dist)]
+  mat_int_dist_pred <- mat_int_dist_pred[rownames(mat_phylo_dist), colnames(mat_phylo_dist)]
+  mat_int_dist_prey <- mat_int_dist_prey[rownames(mat_phylo_dist), colnames(mat_phylo_dist)]
+  
+  # Match order of column and row names between interaction and phylogenetic distance matrices
+  species_order <- colnames(mat_int_dist_mean)
+  mat_phylo_dist <- mat_phylo_dist[species_order, species_order]
+  
+  # Check if the composition of species is the same
+  vec_problems_sppcomp <- identical(sort(colnames(mat_int_dist_mean)), sort(colnames(mat_phylo_dist)))
+  if (!vec_problems_sppcomp) {
+    message("Problem: The column names of mat_int_dist_mean and mat_phylo_dist do not coincide.")
+  }
+  if (all(rownames(mat_int_dist_mean) != rownames(mat_phylo_dist))) {
+    message("Problem: species names don't coincide between mat dist interactions and mat dist phylog.")
+  }
+  
+  # Principal coordinate analysis
+  distmat_phylo_dist <- as.matrix(mat_phylo_dist)
+  distmat_int_dist_mean <- as.matrix(mat_int_dist_mean)
+  distmat_int_dist_pred <- as.matrix(mat_int_dist_pred)
+  distmat_int_dist_prey <- as.matrix(mat_int_dist_prey)
+  
+  pco_phy <- cmdscale(distmat_phylo_dist, k = 2)
+  pco_mean <- cmdscale(distmat_int_dist_mean, k = 2)
+  pco_pred <- cmdscale(distmat_int_dist_pred, k = 2)
+  pco_prey <- cmdscale(distmat_int_dist_prey, k = 2)
+  
+  # Procrustes
+  protest_mean <- protest(pco_mean, pco_phy)
+  procrustes_mean <- procrustes(pco_mean, pco_phy)
+  protest_pred <- protest(pco_pred, pco_phy)
+  procrustes_pred <- procrustes(pco_pred, pco_phy)
+  protest_prey <- protest(pco_prey, pco_phy)
+  procrustes_prey <- procrustes(pco_prey, pco_phy)
+  
+  # Save data
+  df_phylosign_island <- data.frame(
+    island = island,
+    cor_mean = protest_mean$t0,
+    sign_mean = protest_mean$signif,
+    cor_pred = protest_pred$t0,
+    sign_pred = protest_pred$signif,
+    cor_prey = protest_prey$t0,
+    sign_prey = protest_prey$signif,
+    stringsAsFactors = FALSE
+  )
+  
+  df_phylosign_island$fw_matrix <- list(matrix_int)
+  df_phylosign_island$subtree <- list(sub.tree_island)
+  df_phylosign_island$distmat_phylo_dist <- list(distmat_phylo_dist)
+  df_phylosign_island$distmat_int_dist_mean <- list(distmat_int_dist_mean)
+  df_phylosign_island$distmat_int_dist_pred <- list(distmat_int_dist_pred)
+  df_phylosign_island$distmat_int_dist_prey <- list(distmat_int_dist_prey)
+  
+  df_phylosign <- rbind(df_phylosign, df_phylosign_island)
+}
+
+
+
+df_phylosign
+
+#saveRDS(df_phylosign, "df_phylosign.rds")
+
+```
+
+
+```{r}
+df_phylosign <- readRDS(here::here("output/galapagos_fw/df_phylosign.rds"))
+
+df_phylosign <- df_phylosign |> 
+  mutate(island = case_when(
+    island == "San.Cristobal" ~ "San_Cristobal", 
+    island == "Santa.Cruz" ~ "Santa_Cruz",
+    island == "Santa.Fe" ~ "Santa_Fe",
+    TRUE ~ island  # Keep the other names unchanged
+  )) |> 
+   filter(island != "Unknown.Island") 
+
+
+
+
+```
+
+
+## Add island characteristics
+
+- Island age
+- Island area
+- age/area
+
+```{r}
+island_features <- read_excel(here::here("data/foodweb_galapagos/island_features.xlsx"))
+
+```
+
+
+
+```{r}
+
+# Function to get the number of species (columns) from a matrix or array
+get_num_species <- function(mat_or_array) {
+  if (is.matrix(mat_or_array)) {
+    return(ncol(mat_or_array))
+  } else if (is.array(mat_or_array) && length(dim(mat_or_array)) >= 2) {
+    return(dim(mat_or_array)[2])
+  } else {
+    return(NA_integer_)
+  }
+}
+
+# Add a column 'S' to the dataframe
+df_phylosign <- df_phylosign |>
+  rowwise() |>
+  mutate(S = get_num_species(fw_matrix)) |>
+  ungroup()
+
+
+# Join df_phylosign with island_features to get island characteristics
+df_phylosign_with_features <- df_phylosign |>
+  left_join(island_features, by = "island")
+
+# Create the long format for plotting
+data_long <- df_phylosign_with_features |>
+  pivot_longer(cols = starts_with("cor"), names_to = "type", values_to = "correlation") |>
+  pivot_longer(cols = starts_with("sign"), names_to = "sign_type", values_to = "significance") |>
+  filter(substr(type, 5, nchar(type)) == substr(sign_type, 6, nchar(sign_type))) |>
+  mutate(sign_label = case_when(
+    significance < 0.001 ~ "***",
+    significance < 0.01 ~ "**",
+    significance < 0.05 ~ "*",
+    significance < 0.1 ~ ".",
+    TRUE ~ ""
+  ))
+
+
+# Reorder the data based on `shield`
+data_long <- data_long %>%
+  arrange(shield, island)
+
+
+ggplot(data_long, aes(x = correlation, y = island, fill = type)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.5), width = 0.5) +
+  geom_text(aes(label = sign_label), position = position_dodge(width = 0.4), hjust = -0.1) +
+  geom_text(aes(label = S), position = position_dodge(width = 0.4), hjust = -0.8, color = "black") +
+  labs(x = "Correlation", y = "Island", fill = "Type") +
+  scale_fill_manual(values = c("cor_mean" = "red", "cor_pred" = "black", "cor_prey" = "gray")) +
+  theme_classic() +
+  theme(axis.text.y = element_text(angle = 0, hjust = 1),
+        legend.position = "top") +
+  facet_grid(shield ~ ., scales = "free_y", space = "free_y")+
+  xlab("phylogenetic signal")
+
+ggsave("phylosignal_fw_galapagos.png", height = 10, width = 6)
+
+
+```
+
+
+```{r}
+data_long <- data_long %>%
+  mutate(area_age = area / age)
+
+library(ggforce)
+library(tidytext)
+
+data_long <- data_long %>%
+  mutate(island_ordered = reorder_within(island, -area_age, shield))
+
+# Create the plot
+ggplot(data_long, aes(x = correlation, y = island_ordered, fill = type)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  geom_text(aes(label = sign_label), position = position_dodge(width = 0.9), hjust = -0.1) +
+  geom_text(aes(label = S), position = position_dodge(width = 0.9), hjust = -0.8, color = "black") +
+  labs(x = "Correlation", y = "Island", fill = "Type") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(angle = 0, hjust = 1)) +
+  facet_grid(shield ~ ., scales = "free_y") +  # Use facet_grid for free y-scaling
+  geom_hline(yintercept = cumsum(table(data_long$shield))[-1] + 0.5, linetype = "dashed") +  # Add horizontal dashed lines
+  scale_y_reordered()  # Use scale_y_reordered to reorder the y-axis labels
+```
+
+
+
+
+
+```{r}
+# Add a new column to indicate significance and marginal significance
+data_long <- data_long %>%
+  mutate(significance_categories = case_when(
+    significance <= 0.05 ~ "significant",
+    significance > 0.05 & significance <= 0.06 ~ "marginal",
+    significance > 0.06 ~ "not_significant"
+  ))
+
+data_long <- data_long |>
+  filter(!island %in% c("Mosquera", "Baltra"))
+
+# Create the plot
+plot_fw_galap_age <- ggplot(data_long, aes(x = age, y = correlation, shape = significance_categories)) +
+  geom_point() +
+  #scale_color_manual(values = c("significant" = "red", "marginal" = "blue", "not_significant" = "black")) +
+  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +
+  labs(x = "Age", y = "Phylogenetic signal", color = "Significance", shape = "Significance") +
+  theme_classic()+
+  ylim(0,1)
+
+plot_fw_galap_area <- ggplot(data_long, aes(x = log(area), y = correlation, shape = significance_categories)) +
+  geom_point() +
+  #scale_color_manual(values = c("significant" = "red", "marginal" = "blue", "not_significant" = "black")) +
+  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +
+  labs(x = "log(Area)", y = "Phylogenetic signal", color = "Significance", shape = "Significance") +
+  theme_classic()+
+  ylim(0,1)
+
+
+######################
+
+
+plot_fw_galap_agearea <- ggplot(data_long, aes(x = log(area_age), y = correlation, shape = significance_categories)) +
+  geom_point(color = "black") +  # Use a single color for all points
+  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +  # Set shapes
+  labs(x = "log(Area/Age)", y = "Phylogenetic signal", shape = "Significance") +
+  theme_classic() +
+  ylim(0, 1) 
+
+
+ggarrange(
+  plot_fw_galap_age,
+  plot_fw_galap_area,
+  
+  ncol = 2,
+  nrow = 1,
+  
+  labels = LETTERS[1:3],
+  
+  common.legend = TRUE
+  
+)
+
+
+ggsave("phylosign_fw_galapagos.png", height = 5, width = 7)
+```
+
+
+```{r}
+
+distmat_phylo_dist <- df_phylosign[which(df_phylosign$island == "Darwin"), "distmat_phylo_dist"][[1]]
+distmat_int_dist_mean <- df_phylosign[which(df_phylosign$island == "Darwin"), "distmat_int_dist_mean"][[1]]
+distmat_int_dist_pred <- df_phylosign[which(df_phylosign$island == "Darwin"), "distmat_int_dist_pred"][[1]]
+distmat_int_dist_prey <- df_phylosign[which(df_phylosign$island == "Darwin"), "distmat_int_dist_prey"][[1]]
+
+
+pco_phy <- cmdscale(distmat_phylo_dist[[1]], k = 2)
+pco_mean <- cmdscale(distmat_int_dist_mean[[1]], k = 2)
+pco_pred <- cmdscale(distmat_int_dist_pred[[1]], k = 2)
+pco_prey <- cmdscale(distmat_int_dist_prey[[1]], k = 2)
+
+num_permutations <- factorial(nrow(distmat_phylo_dist[[1]]))
+
+# Procrustes
+protest_mean <- protest(pco_mean, pco_phy, permutations = num_permutations)
+procrustes_mean <- procrustes(pco_mean, pco_phy)
+protest_pred <- protest(pco_pred, pco_phy)
+procrustes_pred <- procrustes(pco_pred, pco_phy)
+protest_prey <- protest(pco_prey, pco_phy)
+procrustes_prey <- procrustes(pco_prey, pco_phy)
+
+```
+```{r}
+procrustes_cor <- function(phylo_dist,int_dist, indices) {
+  
+  pco_phy <- cmdscale(phylo_dist, k = 2)
+  pco_mean <- cmdscale(int_dist, k = 2)
+  
+  proc <- procrustes(pco_phy, pco_mean)
+  return(proc$ss)  # You might want to use another summary measure, like proc$correlation
+}
+
+# Combine matrices into a list
+combined_data <- list(phylo = distmat_phylo_dist[[1]], interact = distmat_int_dist_mean[[1]])
+
+# Function to calculate Procrustes correlation
+procrustes_cor <- function(data, indices) {
+  # Extract the relevant submatrices
+  phylo_dist <- as.matrix(data$phylo[indices, indices])
+  int_dist <- as.matrix(data$interact[indices, indices])
+  
+  # Number of points in the resampled dataset
+  num_points <- length(indices)
+  
+  # Ensure k is appropriate
+  k_value <- min(2, num_points - 1)
+  
+  if (num_points <= 1 || length(unique(indices)) <= 1) {
+    return(NA)  # Not enough points to perform Procrustes analysis
+  }
+  
+  # Perform MDS (cmdscale) with checks
+  pco_phy <- tryCatch(cmdscale(phylo_dist, k = k_value), error = function(e) return(NA))
+  pco_int <- tryCatch(cmdscale(int_dist, k = k_value), error = function(e) return(NA))
+  
+  # Check for invalid MDS results
+  if (is.na(pco_phy) || is.na(pco_int) || any(is.na(pco_phy)) || any(is.na(pco_int))) {
+    return(NA)
+  }
+  
+  # Perform Procrustes analysis
+  proc <- tryCatch(procrustes(pco_phy, pco_int), error = function(e) return(NA))
+  
+  if (is.na(proc) || is.na(proc$ss)) {
+    return(NA)
+  }
+  
+  return(proc$ss)
+}
+
+# Perform bootstrapping
+set.seed(123)  # For reproducibility
+boot_results <- boot(data = combined_data, statistic = procrustes_cor, R = 1000, sim = "ordinary")
+
+# Remove NA results from bootstrapping
+boot_results$t <- boot_results$t[!is.na(boot_results$t)]
+
+# Extract bootstrap confidence intervals
+boot_ci <- boot.ci(boot_results, type = "perc")
+
+print(boot_results)
+print(boot_ci)
+```
+
+
+```{r}
+# Simulate distance matrices
+set.seed(123)  # For reproducibility
+n_species <- 30
+mat_phylo_dist <- as.matrix(dist(matrix(rnorm(n_species * 10), nrow = n_species)))
+mat_int_dist_mean <- as.matrix(dist(matrix(rnorm(n_species * 10), nrow = n_species)))
+mat_int_dist_pred <- as.matrix(dist(matrix(rnorm(n_species * 10), nrow = n_species)))
+mat_int_dist_prey <- as.matrix(dist(matrix(rnorm(n_species * 10), nrow = n_species)))
+
+# Initialize results storage
+results <- data.frame(
+  k = integer(),
+  cor_mean = numeric(),
+  sign_mean = numeric(),
+  cor_pred = numeric(),
+  sign_pred = numeric(),
+  cor_prey = numeric(),
+  sign_prey = numeric()
+)
+
+# Loop through different values of k
+for (k in 1:(n_species - 1)) {
+  # Principal coordinate analysis
+  pco_phy <- cmdscale(mat_phylo_dist, k = k)
+  pco_mean <- cmdscale(mat_int_dist_mean, k = k)
+  pco_pred <- cmdscale(mat_int_dist_pred, k = k)
+  pco_prey <- cmdscale(mat_int_dist_prey, k = k)
+  
+  # Procrustes
+  protest_mean <- protest(pco_mean, pco_phy)
+  protest_pred <- protest(pco_pred, pco_phy)
+  protest_prey <- protest(pco_prey, pco_phy)
+  
+  # Store results
+  results <- rbind(results, data.frame(
+    k = k,
+    cor_mean = protest_mean$t0,
+    sign_mean = protest_mean$signif,
+    cor_pred = protest_pred$t0,
+    sign_pred = protest_pred$signif,
+    cor_prey = protest_prey$t0,
+    sign_prey = protest_prey$signif
+  ))
+}
+
+# Plot results
+ggplot(results, aes(x = k)) +
+  geom_line(aes(y = cor_mean, color = "Mean Correlation")) +
+  geom_point(aes(y = cor_mean, color = "Mean Correlation")) +
+  geom_line(aes(y = cor_pred, color = "Predator Correlation")) +
+  geom_point(aes(y = cor_pred, color = "Predator Correlation")) +
+  geom_line(aes(y = cor_prey, color = "Prey Correlation")) +
+  geom_point(aes(y = cor_prey, color = "Prey Correlation")) +
+  labs(
+    x = "Number of Dimensions (k)",
+    y = "Procrustes Correlation",
+    color = "Legend"
+  ) +
+  theme_minimal()
+
+ggplot(results, aes(x = k)) +
+  geom_line(aes(y = sign_mean, color = "Mean Significance")) +
+  geom_point(aes(y = sign_mean, color = "Mean Significance")) +
+  geom_line(aes(y = sign_pred, color = "Predator Significance")) +
+  geom_point(aes(y = sign_pred, color = "Predator Significance")) +
+  geom_line(aes(y = sign_prey, color = "Prey Significance")) +
+  geom_point(aes(y = sign_prey, color = "Prey Significance")) +
+  labs(
+    x = "Number of Dimensions (k)",
+    y = "Procrustes Significance",
+    color = "Legend"
+  ) +
+  theme_minimal()
+```
+
