@@ -8,6 +8,8 @@ library(ggplot2)
 library(reshape2)
 library(dplyr)
 library(ggpubr)
+
+source(here::here("code/functions/functions_simulation_inspection.R"))
 ```
 
 
@@ -35,7 +37,7 @@ Read data
 ```{r}
 df_div_list_fac <- readRDS(here::here("output/facilitation/df_div_list_fac_100sim.rds"))
 df_div_list_comp <- readRDS(here::here("output/competition/df_div_list_comp_100sim.rds"))
-df_div_list_fw <- readRDS(here::here("output/foodweb/df_div_list_fw_100sim.rds"))
+df_div_list_fw <- readRDS(here::here("output/simulation_fw/df_div_list_50sim_fw.rds"))
 ```
 
 
@@ -115,7 +117,7 @@ Read data
 
 df_signal_time_fac <- readRDS(here::here("output/facilitation/df_signal_time_fac_100sim.rds"))
 df_signal_time_comp <- readRDS(here::here("output/competition/df_signal_time_comp_100sim.rds"))
-df_signal_time_fw <- readRDS(here::here("output/foodweb/df_signal_time_fw_100sim.rds"))
+df_signal_time_fw <- readRDS(here::here("output/simulation_fw/df_signal_time_50sim_fw.rds"))
 
 ```
 
@@ -300,4 +302,7 @@ ggarrange(phylosignal_plot_fac,
 
 ggsave("plot_phylosignal.png", height = 5, width = 9)
 ```
+
+
+
 

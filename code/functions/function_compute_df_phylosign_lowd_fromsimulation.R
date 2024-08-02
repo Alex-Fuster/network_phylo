@@ -1,5 +1,30 @@
 ######## compute phylogenetic signal from simulation results
 
+get_rank_mat <- function(matrix, d) {
+  
+  names = row.names(matrix)
+  
+  #compute Singular Value Decomposition
+  SVD = svd(matrix)
+  U = SVD$u
+  S = diag(SVD$d)
+  Ssqrt = structure(vapply(S, sqrt, numeric(1)),dim=dim(S))
+  V = SVD$v
+  
+  #Obtain traits
+  #compute d-rank in- and out- traits
+  traits_in =  V[ ,1:d] %*% Ssqrt[1:d,1:d]
+  traits_out = U[ ,1:d] %*% Ssqrt[1:d,1:d]
+  
+  
+  results <- list(traits_in,traits_out)
+  
+  return(results)
+  
+}
+
+
+
 
 check_matrix.with.values <- function(matrix) {
   result <- any(matrix != 0)
@@ -15,7 +40,11 @@ eliminate_basals <- function(matrix, nbasals) {
 }
 
 
-compute_df_phylosignal_fromsimulation <- function(results_simulation, int, Smax, sim, input_matrix_procrustes) {
+compute_df_phylosignal_fromsimulation <- function(results_simulation, 
+                                                  int, 
+                                                  Smax, 
+                                                  sim, 
+                                                  input_matrix_procrustes) {
   
   
   
@@ -421,6 +450,224 @@ compute_df_phylosignal_fromsimulation <- function(results_simulation, int, Smax,
   df_phylosign_time_sim$list_dist_interact_distances_prey_corrected <- list_dist_interact_distances_prey_corrected
   
   
-  return(df_phylosign_time_sim)
+  
+  
+  ####################################
+  ########### low d ##################
+  
+  
+  ## compute svd for interacton distance matrices (d = 2 when S < 7, and d = 6 when S > 7)
+  
+  list_interact_distances_mean_corrected_d <- list()
+  
+  for (i in 1:length(list_interact_distances_mean_corrected)) {
+    if(ncol(list_interact_distances_mean_corrected[[i]]) < 7){
+      list_interact_distances_mean_corrected_d[[i]] <- get_rank_mat(list_interact_distances_mean_corrected[[i]], ncol(list_interact_distances_mean_corrected[[i]]))[[2]]
+    } else {
+      list_interact_distances_mean_corrected_d[[i]] <- get_rank_mat(list_interact_distances_mean_corrected[[i]], 6)[[2]]
+    } 
+  }
+  
+  
+  list_interact_distances_pred_corrected_d <- list()
+  
+  for (i in 1:length(list_interact_distances_pred_corrected)) {
+    if(ncol(list_interact_distances_pred_corrected[[i]]) < 7){
+      list_interact_distances_pred_corrected_d[[i]] <- get_rank_mat(list_interact_distances_pred_corrected[[i]], ncol(list_interact_distances_pred_corrected[[i]]))[[2]]
+    } else {
+      list_interact_distances_pred_corrected_d[[i]] <- get_rank_mat(list_interact_distances_pred_corrected[[i]], 6)[[2]]
+    } 
+  }
+  
+  list_interact_distances_prey_corrected_d <- list()
+  
+  for (i in 1:length(list_interact_distances_prey_corrected)) {
+    if(ncol(list_interact_distances_prey_corrected[[i]]) < 7){
+      list_interact_distances_prey_corrected_d[[i]] <- get_rank_mat(list_interact_distances_prey_corrected[[i]], ncol(list_interact_distances_prey_corrected[[i]]))[[2]]
+    } else {
+      list_interact_distances_prey_corrected_d[[i]] <- get_rank_mat(list_interact_distances_prey_corrected[[i]], 6)[[2]]
+    } 
+  }
+  
+  
+  
+  ## compute svd for phylogenetic distance matrices
+  
+  
+  list_dist.phylo_pres_d <- list()
+  
+  
+  for (i in 1:length(list_dist.phylo_pres)) {
+    if(ncol(list_dist.phylo_pres[[i]]) < 7){
+      list_dist.phylo_pres_d[[i]] <- get_rank_mat(list_dist.phylo_pres[[i]], ncol(list_dist.phylo_pres[[i]]))[[2]]
+    } else {
+      list_dist.phylo_pres_d[[i]] <- get_rank_mat(list_dist.phylo_pres[[i]], 6)[[2]]
+    }
+  }
+  
+  
+  
+  ## make sure we have matrices
+  list_dist_dist.phylo_pres <- list()
+  list_dist_interact_distances_pred_corrected <- list()
+  list_dist_interact_distances_prey_corrected <- list()
+  list_dist_interact_distances_mean_corrected <- list()
+  
+  for (i in 1:length(list_dist.phylo_pres_d)) {
+    list_dist_dist.phylo_pres[[i]] <- as.matrix(list_dist.phylo_pres_d[[i]])
+    list_dist_interact_distances_pred_corrected[[i]] <- as.matrix(list_interact_distances_pred_corrected_d[[i]])
+    list_dist_interact_distances_prey_corrected[[i]] <- as.matrix(list_interact_distances_prey_corrected_d[[i]])
+    list_dist_interact_distances_mean_corrected[[i]] <- as.matrix(list_interact_distances_mean_corrected_d[[i]])
+  }
+  
+  
+  if(input_matrix_procrustes == "pco"){
+    
+    
+    ## compute Principal Coordinate Analyses
+    list_pco.phy <- list()
+    list_pco.int_pred <- list()
+    list_pco.int_prey <- list()
+    list_pco.int_mean <- list()
+    
+    for (i in 1:length(list_dist_dist.phylo_pres)) {
+      pco_phy <- cmdscale(list_dist_dist.phylo_pres[[i]], k = 2)
+      list_pco.phy[[i]] <- pco_phy
+      pco_pred <- cmdscale(list_dist_interact_distances_pred_corrected[[i]], k = 2)
+      list_pco.int_pred[[i]] <- pco_pred
+      pco_prey <- cmdscale(list_dist_interact_distances_prey_corrected[[i]], k = 2)
+      list_pco.int_prey[[i]] <- pco_prey
+      pco_mean <- cmdscale(list_dist_interact_distances_mean_corrected[[i]], k = 2)
+      list_pco.int_mean[[i]] <- pco_mean
+    }
+    
+    
+    ## Compute correlation - Procrustes test
+    
+    protest_pred <- list()
+    procrustes_pred <- list()
+    
+    protest_prey <- list()
+    procrustes_prey <- list()
+    
+    protest_mean <- list()
+    procrustes_mean <- list()
+    
+    
+    for (i in 1:length(list_pco.phy)) {
+      protest_pred[[i]] <- protest(list_pco.int_pred[[i]], list_pco.phy[[i]])
+      procrustes_pred[[i]] <- procrustes(list_pco.int_pred[[i]],list_pco.phy[[i]])
+    }
+    
+    for (i in 1:length(list_pco.phy)) {
+      protest_prey[[i]] <- protest(list_pco.int_prey[[i]], list_pco.phy[[i]])
+      procrustes_prey[[i]] <- procrustes(list_pco.int_prey[[i]],list_pco.phy[[i]])
+    }
+    
+    for (i in 1:length(list_pco.phy)) {
+      protest_mean[[i]] <- protest(list_pco.int_mean[[i]], list_pco.phy[[i]])
+      procrustes_mean[[i]] <- procrustes(list_pco.int_mean[[i]],list_pco.phy[[i]])
+    }
+    
+  } else if(input_matrix_procrustes == "matrix"){
+    
+    ## Compute correlation - Procrustes test
+    
+    protest_pred <- list()
+    procrustes_pred <- list()
+    
+    protest_prey <- list()
+    procrustes_prey <- list()
+    
+    protest_mean <- list()
+    procrustes_mean <- list()
+    
+    
+    for (i in 1:length(list_dist_dist.phylo_pres)) {
+      protest_pred[[i]] <- protest(list_dist_interact_distances_pred_corrected[[i]], list_dist_dist.phylo_pres[[i]])
+      procrustes_pred[[i]] <- procrustes(list_dist_interact_distances_pred_corrected[[i]],list_dist_dist.phylo_pres[[i]])
+    }
+    
+    for (i in 1:length(list_dist_dist.phylo_pres)) {
+      protest_prey[[i]] <- protest(list_dist_interact_distances_prey_corrected[[i]], list_dist_dist.phylo_pres[[i]])
+      procrustes_prey[[i]] <- procrustes(list_dist_interact_distances_prey_corrected[[i]],list_dist_dist.phylo_pres[[i]])
+    }
+    
+    for (i in 1:length(list_dist_dist.phylo_pres)) {
+      protest_mean[[i]] <- protest(list_dist_interact_distances_mean_corrected[[i]], list_dist_dist.phylo_pres[[i]])
+      procrustes_mean[[i]] <- procrustes(list_dist_interact_distances_mean_corrected[[i]],list_dist_dist.phylo_pres[[i]])
+    }
+    
+    
+    
+  }
+  
+  
+  
+  
+  
+  #### Create dataframe results
+  protest_pval_pred <- c()
+  protest_corr_pred <- c()
+  
+  protest_pval_prey <- c()
+  protest_corr_prey <- c()
+  
+  protest_pval_mean <- c()
+  protest_corr_mean <- c()
+  
+  for (i in 1:length(protest_mean)) {
+    
+    protest_pval_pred[i] <- protest_pred[[i]]$signif
+    protest_corr_pred[i] <-protest_pred[[i]]$t0
+    
+    protest_pval_prey[i] <- protest_prey[[i]]$signif
+    protest_corr_prey[i] <-protest_prey[[i]]$t0
+    
+    protest_pval_mean[i] <- protest_mean[[i]]$signif
+    protest_corr_mean[i] <-protest_mean[[i]]$t0
+  }
+  
+  
+  ## add timesteps
+  if(length(vec_timesteps_all0) > 0){
+    timesteps <- (final.discarded_timestep+1):n_steps
+    timesteps <- timesteps[-c(vec_timesteps_all0)]
+  }else{
+    timesteps <- (final.discarded_timestep+1):n_steps
+  }
+  
+  df_phylosign_time_sim_d <- data.frame("timesteps" = timesteps,
+                                      "phylosign_cor_mean" = protest_corr_mean,
+                                      "phylosign_p_mean" = protest_pval_mean,
+                                      "phylosign_cor_pred" = protest_corr_pred,
+                                      "phylosign_p_pred" = protest_pval_pred,
+                                      "phylosign_cor_prey" = protest_corr_prey,
+                                      "phylosign_p_prey" = protest_pval_prey,
+                                      "sim" = rep(sim, times = length(timesteps)),
+                                      "interaction" = rep(int, times = length(timesteps)))
+  
+  ## add S
+  n_spp_time <- c()
+  
+  for (i in 1:length(list_dist_dist.phylo_pres)) {
+    n_spp_time[i] <- nrow(list_dist_dist.phylo_pres[[i]])
+  }
+  
+  ## add list of distance matrices
+  df_phylosign_time_sim_d$nspp <- n_spp_time
+  
+  df_phylosign_time_sim_d$list_phylo_dist <- list_dist_dist.phylo_pres
+  df_phylosign_time_sim_d$list_dist_interact_distances_mean_corrected <- list_dist_interact_distances_mean_corrected
+  df_phylosign_time_sim_d$list_dist_interact_distances_pred_corrected <- list_dist_interact_distances_pred_corrected
+  df_phylosign_time_sim_d$list_dist_interact_distances_prey_corrected <- list_dist_interact_distances_prey_corrected
+  
+  
+  
+  ###################################################
+  
+  list_results <- c(df_phylosign_time_sim, df_phylosign_time_sim_d)
+  
+  return(list_results)
   
 }

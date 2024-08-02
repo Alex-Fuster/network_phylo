@@ -29,6 +29,7 @@ library(tidyr)
 library(readxl)
 library(dplyr)
 library(tidyr)
+library(ggpubr)
 
 
 source(here::here("code/functions/functions_phylosignal.R")) 
@@ -133,18 +134,18 @@ for (i in unique(names(metaweb_pariles))) {
   distmat_int_dist_pred <- as.matrix(mat_int_dist_pred)
   distmat_int_dist_prey <- as.matrix(mat_int_dist_prey)
   
-  pco_phy <- cmdscale(distmat_phylo_dist, k = 2)
-  pco_mean <- cmdscale(distmat_int_dist_mean, k = 2)
-  pco_pred <- cmdscale(distmat_int_dist_pred, k = 2)
-  pco_prey <- cmdscale(distmat_int_dist_prey, k = 2)
+#  pco_phy <- cmdscale(distmat_phylo_dist, k = 2)
+#  pco_mean <- cmdscale(distmat_int_dist_mean, k = 2)
+#  pco_pred <- cmdscale(distmat_int_dist_pred, k = 2)
+#  pco_prey <- cmdscale(distmat_int_dist_prey, k = 2)
   
   # Procrustes
-  protest_mean <- protest(pco_mean, pco_phy)
-  procrustes_mean <- procrustes(pco_mean, pco_phy)
-  protest_pred <- protest(pco_pred, pco_phy)
-  procrustes_pred <- procrustes(pco_pred, pco_phy)
-  protest_prey <- protest(pco_prey, pco_phy)
-  procrustes_prey <- procrustes(pco_prey, pco_phy)
+  protest_mean <- protest(distmat_int_dist_mean, distmat_phylo_dist)
+  procrustes_mean <- procrustes(distmat_int_dist_mean, distmat_phylo_dist)
+  protest_pred <- protest(distmat_int_dist_pred, distmat_phylo_dist)
+  procrustes_pred <- procrustes(distmat_int_dist_pred, distmat_phylo_dist)
+  protest_prey <- protest(distmat_int_dist_prey, distmat_phylo_dist)
+  procrustes_prey <- procrustes(distmat_int_dist_prey, distmat_phylo_dist)
   
   # Save data
   df_phylosign_island <- data.frame(
@@ -263,7 +264,7 @@ ggplot(data_long, aes(x = correlation, y = island, fill = type)) +
   facet_grid(shield ~ ., scales = "free_y", space = "free_y")+
   xlab("phylogenetic signal")
 
-ggsave("phylosignal_fw_galapagos.png", height = 10, width = 6)
+#ggsave("phylosignal_fw_galapagos.png", height = 10, width = 6)
 
 
 ```
@@ -351,169 +352,6 @@ ggarrange(
 )
 
 
-ggsave("phylosign_fw_galapagos.png", height = 5, width = 7)
-```
-
-
-```{r}
-
-distmat_phylo_dist <- df_phylosign[which(df_phylosign$island == "Darwin"), "distmat_phylo_dist"][[1]]
-distmat_int_dist_mean <- df_phylosign[which(df_phylosign$island == "Darwin"), "distmat_int_dist_mean"][[1]]
-distmat_int_dist_pred <- df_phylosign[which(df_phylosign$island == "Darwin"), "distmat_int_dist_pred"][[1]]
-distmat_int_dist_prey <- df_phylosign[which(df_phylosign$island == "Darwin"), "distmat_int_dist_prey"][[1]]
-
-
-pco_phy <- cmdscale(distmat_phylo_dist[[1]], k = 2)
-pco_mean <- cmdscale(distmat_int_dist_mean[[1]], k = 2)
-pco_pred <- cmdscale(distmat_int_dist_pred[[1]], k = 2)
-pco_prey <- cmdscale(distmat_int_dist_prey[[1]], k = 2)
-
-num_permutations <- factorial(nrow(distmat_phylo_dist[[1]]))
-
-# Procrustes
-protest_mean <- protest(pco_mean, pco_phy, permutations = num_permutations)
-procrustes_mean <- procrustes(pco_mean, pco_phy)
-protest_pred <- protest(pco_pred, pco_phy)
-procrustes_pred <- procrustes(pco_pred, pco_phy)
-protest_prey <- protest(pco_prey, pco_phy)
-procrustes_prey <- procrustes(pco_prey, pco_phy)
-
-```
-```{r}
-procrustes_cor <- function(phylo_dist,int_dist, indices) {
-  
-  pco_phy <- cmdscale(phylo_dist, k = 2)
-  pco_mean <- cmdscale(int_dist, k = 2)
-  
-  proc <- procrustes(pco_phy, pco_mean)
-  return(proc$ss)  # You might want to use another summary measure, like proc$correlation
-}
-
-# Combine matrices into a list
-combined_data <- list(phylo = distmat_phylo_dist[[1]], interact = distmat_int_dist_mean[[1]])
-
-# Function to calculate Procrustes correlation
-procrustes_cor <- function(data, indices) {
-  # Extract the relevant submatrices
-  phylo_dist <- as.matrix(data$phylo[indices, indices])
-  int_dist <- as.matrix(data$interact[indices, indices])
-  
-  # Number of points in the resampled dataset
-  num_points <- length(indices)
-  
-  # Ensure k is appropriate
-  k_value <- min(2, num_points - 1)
-  
-  if (num_points <= 1 || length(unique(indices)) <= 1) {
-    return(NA)  # Not enough points to perform Procrustes analysis
-  }
-  
-  # Perform MDS (cmdscale) with checks
-  pco_phy <- tryCatch(cmdscale(phylo_dist, k = k_value), error = function(e) return(NA))
-  pco_int <- tryCatch(cmdscale(int_dist, k = k_value), error = function(e) return(NA))
-  
-  # Check for invalid MDS results
-  if (is.na(pco_phy) || is.na(pco_int) || any(is.na(pco_phy)) || any(is.na(pco_int))) {
-    return(NA)
-  }
-  
-  # Perform Procrustes analysis
-  proc <- tryCatch(procrustes(pco_phy, pco_int), error = function(e) return(NA))
-  
-  if (is.na(proc) || is.na(proc$ss)) {
-    return(NA)
-  }
-  
-  return(proc$ss)
-}
-
-# Perform bootstrapping
-set.seed(123)  # For reproducibility
-boot_results <- boot(data = combined_data, statistic = procrustes_cor, R = 1000, sim = "ordinary")
-
-# Remove NA results from bootstrapping
-boot_results$t <- boot_results$t[!is.na(boot_results$t)]
-
-# Extract bootstrap confidence intervals
-boot_ci <- boot.ci(boot_results, type = "perc")
-
-print(boot_results)
-print(boot_ci)
-```
-
-
-```{r}
-# Simulate distance matrices
-set.seed(123)  # For reproducibility
-n_species <- 30
-mat_phylo_dist <- as.matrix(dist(matrix(rnorm(n_species * 10), nrow = n_species)))
-mat_int_dist_mean <- as.matrix(dist(matrix(rnorm(n_species * 10), nrow = n_species)))
-mat_int_dist_pred <- as.matrix(dist(matrix(rnorm(n_species * 10), nrow = n_species)))
-mat_int_dist_prey <- as.matrix(dist(matrix(rnorm(n_species * 10), nrow = n_species)))
-
-# Initialize results storage
-results <- data.frame(
-  k = integer(),
-  cor_mean = numeric(),
-  sign_mean = numeric(),
-  cor_pred = numeric(),
-  sign_pred = numeric(),
-  cor_prey = numeric(),
-  sign_prey = numeric()
-)
-
-# Loop through different values of k
-for (k in 1:(n_species - 1)) {
-  # Principal coordinate analysis
-  pco_phy <- cmdscale(mat_phylo_dist, k = k)
-  pco_mean <- cmdscale(mat_int_dist_mean, k = k)
-  pco_pred <- cmdscale(mat_int_dist_pred, k = k)
-  pco_prey <- cmdscale(mat_int_dist_prey, k = k)
-  
-  # Procrustes
-  protest_mean <- protest(pco_mean, pco_phy)
-  protest_pred <- protest(pco_pred, pco_phy)
-  protest_prey <- protest(pco_prey, pco_phy)
-  
-  # Store results
-  results <- rbind(results, data.frame(
-    k = k,
-    cor_mean = protest_mean$t0,
-    sign_mean = protest_mean$signif,
-    cor_pred = protest_pred$t0,
-    sign_pred = protest_pred$signif,
-    cor_prey = protest_prey$t0,
-    sign_prey = protest_prey$signif
-  ))
-}
-
-# Plot results
-ggplot(results, aes(x = k)) +
-  geom_line(aes(y = cor_mean, color = "Mean Correlation")) +
-  geom_point(aes(y = cor_mean, color = "Mean Correlation")) +
-  geom_line(aes(y = cor_pred, color = "Predator Correlation")) +
-  geom_point(aes(y = cor_pred, color = "Predator Correlation")) +
-  geom_line(aes(y = cor_prey, color = "Prey Correlation")) +
-  geom_point(aes(y = cor_prey, color = "Prey Correlation")) +
-  labs(
-    x = "Number of Dimensions (k)",
-    y = "Procrustes Correlation",
-    color = "Legend"
-  ) +
-  theme_minimal()
-
-ggplot(results, aes(x = k)) +
-  geom_line(aes(y = sign_mean, color = "Mean Significance")) +
-  geom_point(aes(y = sign_mean, color = "Mean Significance")) +
-  geom_line(aes(y = sign_pred, color = "Predator Significance")) +
-  geom_point(aes(y = sign_pred, color = "Predator Significance")) +
-  geom_line(aes(y = sign_prey, color = "Prey Significance")) +
-  geom_point(aes(y = sign_prey, color = "Prey Significance")) +
-  labs(
-    x = "Number of Dimensions (k)",
-    y = "Procrustes Significance",
-    color = "Legend"
-  ) +
-  theme_minimal()
+#ggsave("phylosign_fw_galapagos.png", height = 5, width = 7)
 ```
 

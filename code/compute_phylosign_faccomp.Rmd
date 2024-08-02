@@ -19,7 +19,6 @@ library(ape)
 #source(here::here("code/functions/function_plot_mean_div.R"))
 #source(here::here("code/functions/functions_simulation_inspection.R"))
 source(here::here("code/functions/functions_phylosignal.R")) 
-source(here::here("code/functions/functions_compute_phylosignal_nsim.R"))
 source(here::here("code/functions/function_compute_df_phylosign_fromsimulation.R"))
 source(here::here("code/functions/function_compute_df_centr_long.R"))
 source(here::here("code/functions/functions_compute_degree_longev_fromsimulation.R"))
@@ -104,8 +103,8 @@ Change pars$SN to simulate different scenarios:
 
 ```{r}
 
-pars$SN = 1 # strength for neutral-driven evolution
-pars$estab_prob_neutral = rep(0.5, pars$Smax) # neutral probability of establishment
+pars$SN = 0.5 # strength for neutral-driven evolution
+pars$estab_prob_neutral = 0.5 # neutral probability of establishment
 pars$ext_prob_neutral = 0.03 #0.0003 # neutral probability of extinction
 
 ```
@@ -118,7 +117,7 @@ pars$ext_prob_neutral = 0.03 #0.0003 # neutral probability of extinction
 
 ```{r}
 nsteps = 250 # Set the maximum timestep per simulation
-nsim = 2 # Set the number of simulations
+nsim = 50 # Set the number of simulations
 
 # Vector to record number of simulation needed to reach 100 valid simulations
 needed_sim_pos <- c(rep(NA, nsim))
@@ -279,7 +278,8 @@ df_div_list_fac <- list() # to store dataframes with speciation and extinction r
     		  df_phylosign_sim <- compute_df_phylosignal_fromsimulation(results_simulation = res_sim, 
     		                                                            int = "facilitation", 
     		                                                            Smax = pars$Smax,
-    		                                                            sim = successful_sim)
+    		                                                            sim = successful_sim,
+    		                                                            input_matrix_procrustes = "matrix")
     		  
     		df_signal_time <- rbind(df_signal_time, df_phylosign_sim)
     		
@@ -454,7 +454,8 @@ df_div_list_comp <- list() # to store dataframes with speciation and extinction 
     		  df_phylosign_sim <- compute_df_phylosignal_fromsimulation(results_simulation = res_sim, 
     		                                                            int = "competition", 
     		                                                            Smax = pars$Smax,
-    		                                                            sim = successful_sim)
+    		                                                            sim = successful_sim,
+    		                                                            input_matrix_procrustes = "matrix")
     		  
     		df_signal_time <- rbind(df_signal_time, df_phylosign_sim)
     		
@@ -484,17 +485,17 @@ df_centr_long_comp <- df_centr_long
 
 # df phylosignal
 
-saveRDS(df_signal_time_fac, here::here("output/phylosignal/facilitation/df_signal_time_fac.rds"))
+saveRDS(df_signal_time_fac, here::here("output/simulation_fac_n/df_signal_time_fac_50sim_0.5n.rds"))
 saveRDS(df_signal_time_comp, here::here("output/phylosignal/competition/df_signal_time_comp.rds"))
 
 # df centrality-longevity
 
-saveRDS(df_centr_long_fac, here::here("output/phylosignal/facilitation/df_centr_long_fac.rds"))
+saveRDS(df_centr_long_fac, here::here("output/simulation_fac_n/df_centr_long_fac_50sim_0.5n.rds"))
 saveRDS(df_centr_long_comp, here::here("output/phylosignal/competition/df_centr_long_comp.rds"))
 
 
 # list div rates
-saveRDS(df_div_list_fac, here::here("output/phylosignal/facilitation/df_div_list_fac.rds"))
+saveRDS(df_div_list_fac, here::here("output/simulation_fac_n/df_div_list_fac_50sim_0.5n.rds"))
 saveRDS(df_div_list_comp, here::here("output/phylosignal/competition/df_div_list_comp.rds"))
 
 ```
