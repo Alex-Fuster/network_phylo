@@ -25,6 +25,379 @@ my.theme<-theme(axis.text=element_text(size=12),
 ```
 
 
+Number of maximal species allowed (community carrying capacity)
+
+```{r}
+max_s = 60
+```
+
+
+
+# Figure 1
+
+Read data
+
+```{r}
+
+df_signal_time_fac <- readRDS(here::here("../network_phylo_large_output/simulation_fac/df_signal_time_fac.rds"))
+df_signal_time_comp <- readRDS(here::here("../network_phylo_large_output/simulation_comp/df_signal_time_comp.rds"))
+df_signal_time_fw <- readRDS(here::here("../network_phylo_large_output/simulation_fw/df_signal_time_50sim_fw.rds"))
+
+```
+
+
+
+
+
+facilitation
+
+```{r}
+
+# Calculate mean and confidence intervals for each nspp
+summary_df <- df_signal_time_fac %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+phylosignal_plot_fac <- ggplot(summary_df, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "black") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "gray30") + # Confidence interval
+  geom_vline(xintercept  = max_s, linetype = "dashed", color = "black") + # Vertical dashed line at nspp max_s
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+```
+
+
+competition
+
+```{r}
+
+# Calculate mean and confidence intervals for each nspp
+summary_df <- df_signal_time_comp %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+phylosignal_plot_comp <- ggplot(summary_df, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "black") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "gray30") + # Confidence interval
+  geom_vline(xintercept  = max_s, linetype = "dashed", color = "black") + # Vertical dashed line at nspp max_s
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+```
+
+
+foodweb
+
+```{r}
+
+# Calculate mean and confidence intervals for each nspp
+summary_df_mean <- df_signal_time_fw %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+summary_df_pred <- df_signal_time_fw %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_pred, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_pred, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+summary_df_prey <- df_signal_time_fw %>%
+  group_by(nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_prey, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_prey, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+phylosignal_plot_fw_mean <- ggplot(summary_df_mean, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "black") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "gray30") + # Confidence interval
+  geom_vline(xintercept  = max_s, linetype = "dashed", color = "black") + # Vertical dashed line at nspp max_s
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+phylosignal_plot_fw_pred <- ggplot(summary_df_pred, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "black") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "gray30") + # Confidence interval
+  geom_vline(xintercept  = max_s, linetype = "dashed", color = "black") + # Vertical dashed line at nspp max_s
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+phylosignal_plot_fw_prey <- ggplot(summary_df_prey, aes(x = nspp, y = mean_phylosign)) +
+  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
+  geom_smooth(method = "gam", se = FALSE, color = "black") + # Mean trend line
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "gray30") + # Confidence interval
+  geom_vline(xintercept  = max_s, linetype = "dashed", color = "black") + # Vertical dashed line at nspp max_s
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic()+
+  my.theme+
+  ylim(0,1)
+
+
+ ggarrange(phylosignal_plot_fw_mean,
+          phylosignal_plot_fw_pred + ylab(""),
+          phylosignal_plot_fw_prey + ylab(""),
+          
+          ncol = 3, 
+          nrow = 1,
+         
+         labels = LETTERS[1:3])
+
+#ggsave(here::here("output/figures/foodweb_phylosignal.png"), height = 5, width = 10)
+```
+
+
+Figure 1
+
+
+```{r}
+ggarrange(phylosignal_plot_fw_mean,
+          phylosignal_plot_comp + ylab(""),
+          phylosignal_plot_fac + ylab(""),
+          ncol = 3, 
+          nrow = 1,
+          labels = LETTERS[1:3])
+
+#ggsave(here::here("output/figures/fig1.phylosignal.png"), height = 5, width = 10)
+```
+
+
+
+# Figure 2
+
+
+Read data
+
+```{r}
+
+# facilitation
+
+df_signal_fac_25 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_fac_0.25.rds"))
+df_signal_fac_50 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_fac_0.5.rds"))
+df_signal_fac_75 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_fac_0.75.rds"))
+df_signal_fac_100 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_fac_1.rds"))
+
+
+# competition
+
+df_signal_comp_25 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_comp_0.25.rds"))
+df_signal_comp_50 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_comp_0.5.rds"))
+df_signal_comp_75 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_comp_0.75.rds"))
+df_signal_comp_100 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_comp_1.rds"))
+
+# foodweb
+
+df_signal_fw_25 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_fw_0.25.rds"))
+df_signal_fw_50 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_fw_0.5.rds"))
+df_signal_fw_75 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_fw_0.75.rds"))
+df_signal_fw_100 <- readRDS(here::here("../network_phylo_large_output/neutral/df_signal_time/df_signal_time_fw_1.rds"))
+
+```
+
+
+
+### Facilitation
+
+```{r}
+# Load the datasets for each facilitation scenario
+df_signal_fac_0 <- df_signal_time_fac
+df_signal_fac_25$scenario <- "75%"
+df_signal_fac_50$scenario <- "50%"
+df_signal_fac_75$scenario <- "25%"
+df_signal_fac_100$scenario <- "0%"
+
+# Combine all dataframes into one
+df_all_fac <- bind_rows(
+  df_signal_fac_0 %>% mutate(scenario = "100%"),
+  df_signal_fac_25,
+  df_signal_fac_50,
+  df_signal_fac_75,
+  df_signal_fac_100
+)
+
+# Ensure the scenarios are ordered correctly
+df_all_fac$scenario <- factor(df_all_fac$scenario, levels = c("100%", "75%", "50%", "25%", "0%"))
+
+# Calculate mean and confidence intervals for each scenario and nspp
+summary_df_all_fac <- df_all_fac %>%
+  group_by(scenario, nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+# Plotting
+phylosignal_fac_n <- ggplot(summary_df_all_fac, aes(x = nspp, y = mean_phylosign, color = scenario)) +
+  geom_smooth(method = "gam", se = FALSE) + # Mean trend lines
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper, fill = scenario), alpha = 0.2, color = NA) + # Confidence intervals with no borders
+  geom_vline(xintercept  = max_s, linetype = "dashed", color = "black") + # Vertical dashed line at nspp max_s
+  scale_color_viridis_d(option = "magma", end = 0.9, begin = 0.1, direction = 1, name = "Selection") + # Ensure correct color order
+  scale_fill_viridis_d(option = "magma", end = 0.9, begin = 0.1, direction = 1, name = "Selection") + # Ensure correct fill order
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic() +
+  my.theme +
+  ylim(0, 1)
+```
+
+
+### competition
+
+```{r}
+# Load the datasets for each competition scenario
+df_signal_comp_0 <- df_signal_time_comp
+df_signal_comp_25$scenario <- "75%"
+df_signal_comp_50$scenario <- "50%"
+df_signal_comp_75$scenario <- "25%"
+df_signal_comp_100$scenario <- "0%"
+
+# Combine all dataframes into one
+df_all_comp <- bind_rows(
+  df_signal_comp_0 %>% mutate(scenario = "100%"),
+  df_signal_comp_25,
+  df_signal_comp_50,
+  df_signal_comp_75,
+  df_signal_comp_100
+)
+
+# Ensure the scenarios are ordered correctly
+df_all_comp$scenario <- factor(df_all_comp$scenario, levels = c("100%", "75%", "50%", "25%", "0%"))
+
+# Calculate mean and confidence intervals for each scenario and nspp
+summary_df_all_comp <- df_all_comp %>%
+  group_by(scenario, nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+# Plotting
+phylosignal_comp_n <- ggplot(summary_df_all_comp, aes(x = nspp, y = mean_phylosign, color = scenario)) +
+  geom_smooth(method = "gam", se = FALSE) + # Mean trend lines
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper, fill = scenario), alpha = 0.2, color = NA) + # Confidence intervals with no borders
+  geom_vline(xintercept  = max_s, linetype = "dashed", color = "black") + # Vertical dashed line at nspp max_s
+  scale_color_viridis_d(option = "magma", end = 0.9, begin = 0.1, direction = 1, name = "Selection") + # Ensure correct color order
+  scale_fill_viridis_d(option = "magma", end = 0.9, begin = 0.1, direction = 1, name = "Selection") + # Ensure correct fill order
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic() +
+  my.theme +
+  ylim(0, 1)
+
+```
+
+
+## foodweb
+
+```{r}
+# Load the datasets for each food web scenario
+df_signal_fw_0 <- df_signal_time_fw
+df_signal_fw_25$scenario <- "75%"
+df_signal_fw_50$scenario <- "50%"
+df_signal_fw_75$scenario <- "25%"
+df_signal_fw_100$scenario <- "0%"
+
+# Combine all dataframes into one
+df_all_fw <- bind_rows(
+  df_signal_fw_0 %>% mutate(scenario = "100%"),
+  df_signal_fw_25,
+  df_signal_fw_50,
+  df_signal_fw_75,
+  df_signal_fw_100
+)
+
+# Ensure the scenarios are ordered correctly
+df_all_fw$scenario <- factor(df_all_fw$scenario, levels = c("100%", "75%", "50%", "25%", "0%"))
+
+# Calculate mean and confidence intervals for each scenario and nspp
+summary_df_all_fw <- df_all_fw %>%
+  group_by(scenario, nspp) %>%
+  summarise(
+    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
+    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
+    n = n(),
+    se_phylosign = sd_phylosign / sqrt(n),
+    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
+    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
+  )
+
+# Plotting
+phylosignal_fw_n <- ggplot(summary_df_all_fw, aes(x = nspp, y = mean_phylosign, color = scenario)) +
+  geom_smooth(method = "gam", se = FALSE) + # Mean trend lines
+  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper, fill = scenario), alpha = 0.2, color = NA) + # Confidence intervals with no borders
+  geom_vline(xintercept  = max_s, linetype = "dashed", color = "black") + # Vertical dashed line at nspp max_s
+  scale_color_viridis_d(option = "magma", end = 0.9, begin = 0.1, direction = 1, name = "Selection") + # Ensure correct color order
+  scale_fill_viridis_d(option = "magma", end = 0.9, begin = 0.1, direction = 1, name = "Selection") + # Ensure correct fill order
+  labs(x = "Species Richness", y = "Phylogenetic Signal") +
+  theme_classic() +
+  my.theme +
+  ylim(0, 1)
+
+```
+
+
+Figure 2
+
+
+```{r}
+ggarrange(phylosignal_fw_n,
+          phylosignal_fac_n + ylab(""),
+          phylosignal_comp_n + ylab(""),
+          ncol = 3, 
+          nrow = 1,
+          labels = LETTERS[1:3],
+          common.legend = TRUE)
+
+ggsave(here::here("output/figures/fig2.phylosignal_n.png"), height = 5, width = 10)
+```
+
 
 
 # Plot diversification rates
@@ -33,9 +406,9 @@ my.theme<-theme(axis.text=element_text(size=12),
 Read data
 
 ```{r}
-df_div_list_fac <- readRDS(here::here("output/facilitation/df_div_list_fac_100sim.rds"))
-df_div_list_comp <- readRDS(here::here("output/competition/df_div_list_comp_100sim.rds"))
-df_div_list_fw <- readRDS(here::here("output/simulation_fw/df_div_list_50sim_fw.rds"))
+df_div_list_fac <- readRDS(here::here("../network_phylo_large_output/simulation_fac/df_div_list_fac.rds"))
+df_div_list_comp <- readRDS(here::here("../network_phylo_large_output/simulation_comp/df_div_list_comp.rds"))
+df_div_list_fw <- readRDS(here::here("../network_phylo_large_output/simulation_fw/df_div_list_fw.rds"))
 ```
 
 
@@ -77,227 +450,54 @@ df_combined_fw <- do.call(rbind, df_div_list_fw)
   plot_div_fac <- ggplot(summary_data_fac, aes(x = S, y = mean_value, color = variable, group = variable)) +
     geom_smooth(method = "loess") +
     #  geom_ribbon(aes(ymin = ci_low, ymax = ci_high, fill = variable), alpha = 0.3) +
-    scale_color_manual(values = c("blue4", "red2")) +
-    scale_fill_manual(values = c("blue4", "red2"), guide = FALSE) +
+    scale_color_manual(values = c("blue4", "red2"), labels = c("spec" = "Speciation", "ext" = "Extinction")) +
+    scale_fill_manual(values = c("blue4", "red2", labels = c("spec" = "Speciation", "ext" = "Extinction")), guide = FALSE) +
+    geom_vline(xintercept  = max_s, linetype = "dashed", color = "black")+
     theme_classic() +
     labs(x = "Species richness", y = "Rate") +
+    guides(color = guide_legend(title = NULL)) + 
     my.theme
   
     plot_div_comp <- ggplot(summary_data_comp, aes(x = S, y = mean_value, color = variable, group = variable)) +
     geom_smooth(method = "loess") +
     #  geom_ribbon(aes(ymin = ci_low, ymax = ci_high, fill = variable), alpha = 0.3) +
-    scale_color_manual(values = c("blue4", "red2")) +
-    scale_fill_manual(values = c("blue4", "red2"), guide = FALSE) +
+    scale_color_manual(values = c("blue4", "red2"), labels = c("spec" = "Speciation", "ext" = "Extinction")) +
+    scale_fill_manual(values = c("blue4", "red2"), labels = c("spec" = "Speciation", "ext" = "Extinction"), guide = FALSE) +
+      geom_vline(xintercept  = max_s, linetype = "dashed", color = "black")+
     theme_classic() +
     labs(x = "Species richness", y = "Rate") +
+      guides(color = guide_legend(title = NULL)) + 
     my.theme
     
         plot_div_fw <- ggplot(summary_data_fw, aes(x = S, y = mean_value, color = variable, group = variable)) +
     geom_smooth(method = "loess") +
     #  geom_ribbon(aes(ymin = ci_low, ymax = ci_high, fill = variable), alpha = 0.3) +
-    scale_color_manual(values = c("blue4", "red2")) +
-    scale_fill_manual(values = c("blue4", "red2"), guide = FALSE) +
+    scale_color_manual(values = c("blue4", "red2"), labels = c("spec" = "Speciation", "ext" = "Extinction")) +
+    scale_fill_manual(values = c("blue4", "red2", labels = c("spec" = "Speciation", "ext" = "Extinction")), guide = FALSE) +
+          geom_vline(xintercept  = max_s, linetype = "dashed", color = "black")+
     theme_classic() +
     labs(x = "Species richness", y = "Rate") +
+          guides(color = guide_legend(title = NULL)) + 
     my.theme
-  
-```
-
-
-
-
-
-# Plot phyloegenetic signal
-
-Read data
-
-```{r}
-
-df_signal_time_fac <- readRDS(here::here("output/facilitation/df_signal_time_fac_100sim.rds"))
-df_signal_time_comp <- readRDS(here::here("output/competition/df_signal_time_comp_100sim.rds"))
-df_signal_time_fw <- readRDS(here::here("output/simulation_fw/df_signal_time_50sim_fw.rds"))
-
-```
-
-
-
-facilitation
-
-```{r}
-
-phylosignal_plot_fac_indiv <- ggplot(df_signal_time_fac, aes(x = nspp, y = phylosign_cor_mean, group = sim)) +
- # geom_point(alpha = 0.5) + # Adding points for each simulation
-  geom_smooth(method = "gam", se = TRUE, color = "blue") + # Adding GAM trend line with confidence interval
-  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Adding vertical dashed line
-  labs(x = "Species richness", y = "Phylogenetic Signal") +
-  theme_classic()+
-  my.theme+
-  ylim(0,1)
-
-
-# Calculate mean and confidence intervals for each nspp
-summary_df <- df_signal_time_fac %>%
-  group_by(nspp) %>%
-  summarise(
-    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
-    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
-    n = n(),
-    se_phylosign = sd_phylosign / sqrt(n),
-    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
-    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
-  )
-
-phylosignal_plot_fac <- ggplot(summary_df, aes(x = nspp, y = mean_phylosign)) +
-  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
-  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
-  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
-  labs(x = "Species Richness", y = "Phylogenetic Signal") +
-  theme_classic()+
-  my.theme+
-  ylim(0,1)
-
-```
-
-
-competition
-
-```{r}
-phylosignal_plot_comp_indiv <- ggplot(df_signal_time_comp, aes(x = nspp, y = phylosign_cor_mean, group = sim)) +
- # geom_point(alpha = 0.5) + # Adding points for each simulation
-  geom_smooth(method = "gam", se = TRUE, color = "blue") + # Adding GAM trend line with confidence interval
-  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Adding vertical dashed line
-  labs(x = "Species richness", y = "Phylogenetic Signal") +
-  theme_classic()+
-  my.theme+
-  ylim(0,1)
-
-
-# Calculate mean and confidence intervals for each nspp
-summary_df <- df_signal_time_comp %>%
-  group_by(nspp) %>%
-  summarise(
-    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
-    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
-    n = n(),
-    se_phylosign = sd_phylosign / sqrt(n),
-    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
-    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
-  )
-
-phylosignal_plot_comp <- ggplot(summary_df, aes(x = nspp, y = mean_phylosign)) +
-  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
-  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
-  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
-  labs(x = "Species Richness", y = "Phylogenetic Signal") +
-  theme_classic()+
-  my.theme+
-  ylim(0,1)
-```
-
-
-foodweb
-
-```{r}
-phylosignal_plot_comp_indiv <- ggplot(df_signal_time_fw, aes(x = nspp, y = phylosign_cor_mean, group = sim)) +
- # geom_point(alpha = 0.5) + # Adding points for each simulation
-  geom_smooth(method = "gam", se = FALSE, color = "blue", alpha = 0.3) + # Adding GAM trend line with confidence interval
-  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Adding vertical dashed line
-  labs(x = "Species richness", y = "Phylogenetic Signal") +
-  theme_classic()+
-  my.theme+
-  ylim(0,1)
-
-
-# Calculate mean and confidence intervals for each nspp
-summary_df_mean <- df_signal_time_fw %>%
-  group_by(nspp) %>%
-  summarise(
-    mean_phylosign = mean(phylosign_cor_mean, na.rm = TRUE),
-    sd_phylosign = sd(phylosign_cor_mean, na.rm = TRUE),
-    n = n(),
-    se_phylosign = sd_phylosign / sqrt(n),
-    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
-    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
-  )
-
-summary_df_pred <- df_signal_time_fw %>%
-  group_by(nspp) %>%
-  summarise(
-    mean_phylosign = mean(phylosign_cor_pred, na.rm = TRUE),
-    sd_phylosign = sd(phylosign_cor_pred, na.rm = TRUE),
-    n = n(),
-    se_phylosign = sd_phylosign / sqrt(n),
-    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
-    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
-  )
-
-summary_df_prey <- df_signal_time_fw %>%
-  group_by(nspp) %>%
-  summarise(
-    mean_phylosign = mean(phylosign_cor_prey, na.rm = TRUE),
-    sd_phylosign = sd(phylosign_cor_prey, na.rm = TRUE),
-    n = n(),
-    se_phylosign = sd_phylosign / sqrt(n),
-    ci_lower = mean_phylosign - qt(0.975, df = n - 1) * se_phylosign,
-    ci_upper = mean_phylosign + qt(0.975, df = n - 1) * se_phylosign
-  )
-
-phylosignal_plot_fw_mean <- ggplot(summary_df_mean, aes(x = nspp, y = mean_phylosign)) +
-  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
-  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
-  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
-  labs(x = "Species Richness", y = "Phylogenetic Signal") +
-  theme_classic()+
-  my.theme+
-  ylim(0,1)
-
-phylosignal_plot_fw_pred <- ggplot(summary_df_pred, aes(x = nspp, y = mean_phylosign)) +
-  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
-  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
-  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
-  labs(x = "Species Richness", y = "Phylogenetic Signal") +
-  theme_classic()+
-  my.theme+
-  ylim(0,1)
-
-phylosignal_plot_fw_prey <- ggplot(summary_df_prey, aes(x = nspp, y = mean_phylosign)) +
-  #geom_point(data = dist_matrices_facilitation_nsim, aes(x = nspp, y = phylosign_cor_mean), alpha = 0.3) + # Scatter plot of all data points
-  geom_smooth(method = "gam", se = FALSE, color = "blue") + # Mean trend line
-  geom_ribbon(aes(ymin = ci_lower, ymax = ci_upper), alpha = 0.2, fill = "blue") + # Confidence interval
-  geom_vline(xintercept = 50, linetype = "dashed", color = "black") + # Vertical dashed line at nspp = 50
-  labs(x = "Species Richness", y = "Phylogenetic Signal") +
-  theme_classic()+
-  my.theme+
-  ylim(0,1)
-
-
-ggarrange(phylosignal_plot_fw_mean,
-          phylosignal_plot_fw_pred + ylab(""),
-          phylosignal_plot_fw_prey + ylab(""),
+        
+        
+        ggarrange(
+          plot_div_fac,
+          plot_div_comp,
+          plot_div_fw,
           
-          ncol = 3, 
+          ncol = 3,
           nrow = 1,
           
-          labels = LETTERS[1:3])
-
-ggsave("plot_phylosignal_fw.png", height = 5, width = 9)
+          labels = LETTERS[1:3],
+          common.legend = TRUE
+        )
+        
+        ggsave(here::here("output/figures/div_curves.png"), height = 5, width = 10)
+        
 ```
 
 
-```{r}
-ggarrange(phylosignal_plot_fac,
-          phylosignal_plot_comp + ylab(""),
-          phylosignal_plot_fw_mean + ylab(""),
-          
-          ncol = 3, 
-          nrow = 1,
-          
-          labels = LETTERS[1:3])
 
-ggsave("plot_phylosignal.png", height = 5, width = 9)
-```
+
 

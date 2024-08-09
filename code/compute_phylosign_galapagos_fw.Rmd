@@ -251,48 +251,25 @@ data_long <- df_phylosign_with_features |>
 data_long <- data_long %>%
   arrange(shield, island)
 
+magma_colors <- viridis(3, option = "inferno",begin = 0.2, end = 0.8)
 
 ggplot(data_long, aes(x = correlation, y = island, fill = type)) +
-  geom_bar(stat = "identity", position = position_dodge(width = 0.5), width = 0.5) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.5), width = 0.4) +
   geom_text(aes(label = sign_label), position = position_dodge(width = 0.4), hjust = -0.1) +
   geom_text(aes(label = S), position = position_dodge(width = 0.4), hjust = -0.8, color = "black") +
-  labs(x = "Correlation", y = "Island", fill = "Type") +
-  scale_fill_manual(values = c("cor_mean" = "red", "cor_pred" = "black", "cor_prey" = "gray")) +
+  labs(x = "Correlation", y = "Island") +
+  scale_fill_manual(values = magma_colors, labels = c("cor_mean" = "Mean", "cor_pred" = "Predators", "cor_prey" = "Preys")) +
   theme_classic() +
   theme(axis.text.y = element_text(angle = 0, hjust = 1),
         legend.position = "top") +
+  guides(fill = guide_legend(title = NULL))+
   facet_grid(shield ~ ., scales = "free_y", space = "free_y")+
   xlab("phylogenetic signal")
 
-#ggsave("phylosignal_fw_galapagos.png", height = 10, width = 6)
+#ggsave(here::here("output/figures/phylosign_bars_islands_galapagos.png"), height = 8, width = 5)
 
 
 ```
-
-
-```{r}
-data_long <- data_long %>%
-  mutate(area_age = area / age)
-
-library(ggforce)
-library(tidytext)
-
-data_long <- data_long %>%
-  mutate(island_ordered = reorder_within(island, -area_age, shield))
-
-# Create the plot
-ggplot(data_long, aes(x = correlation, y = island_ordered, fill = type)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  geom_text(aes(label = sign_label), position = position_dodge(width = 0.9), hjust = -0.1) +
-  geom_text(aes(label = S), position = position_dodge(width = 0.9), hjust = -0.8, color = "black") +
-  labs(x = "Correlation", y = "Island", fill = "Type") +
-  theme_minimal() +
-  theme(axis.text.y = element_text(angle = 0, hjust = 1)) +
-  facet_grid(shield ~ ., scales = "free_y") +  # Use facet_grid for free y-scaling
-  geom_hline(yintercept = cumsum(table(data_long$shield))[-1] + 0.5, linetype = "dashed") +  # Add horizontal dashed lines
-  scale_y_reordered()  # Use scale_y_reordered to reorder the y-axis labels
-```
-
 
 
 
@@ -304,7 +281,8 @@ data_long <- data_long %>%
     significance <= 0.05 ~ "significant",
     significance > 0.05 & significance <= 0.06 ~ "marginal",
     significance > 0.06 ~ "not_significant"
-  ))
+  ),
+  area_age = area/age)
 
 data_long <- data_long |>
   filter(!island %in% c("Mosquera", "Baltra"))
@@ -337,21 +315,18 @@ plot_fw_galap_agearea <- ggplot(data_long, aes(x = log(area_age), y = correlatio
   theme_classic() +
   ylim(0, 1) 
 
+magma_colors <- viridis(3, option = "inferno",begin = 0.2, end = 0.8)
 
-ggarrange(
-  plot_fw_galap_age,
-  plot_fw_galap_area,
-  
-  ncol = 2,
-  nrow = 1,
-  
-  labels = LETTERS[1:3],
-  
-  common.legend = TRUE
-  
-)
+ggplot(data_long, aes(x = log(area_age), y = correlation, shape = significance_categories, color = type)) +
+  geom_point() +  # Color the points based on `type`
+  geom_smooth(method = "gam", se = FALSE) +  # Add a GAM line colored by `type`
+  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +  # Set shapes
+  scale_color_manual(values = magma_colors, labels = c("cor_mean" = "Mean", "cor_pred" = "Predators", "cor_prey" = "Preys")) +  # Set colors from magma palette
+  labs(x = "log(Area/Age)", y = "Phylogenetic signal", shape = "Significance", color = "Phylogenetic\nsignal") +
+  theme_classic() +
+  ylim(0, 1)
 
 
-#ggsave("phylosign_fw_galapagos.png", height = 5, width = 7)
+#ggsave(here::here("output/figures/phylosign_fw_galapagos.png"), height = 5, width = 5)
 ```
 
