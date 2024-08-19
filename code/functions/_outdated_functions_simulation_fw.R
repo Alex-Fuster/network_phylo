@@ -289,6 +289,15 @@ sim_model = function(seed, pars, nsteps) {
         }
       }
       
+      # Validation step (optional)
+      dist_anc1 <- dist_anc
+      colnames(dist_anc1)[colnames(dist_anc1) == "A/E"] <- "Status"
+      extinct_in_pres <- which(pres[step,] == 0 & pres[step-1,] == 1)
+      extinct_in_dist_anc <- which(dist_anc1$Status == "E")
+      if(!all(extinct_in_pres %in% extinct_in_dist_anc)) {
+        warning("Mismatch between pres and dist_anc: Check species extinction assignments.")
+      }
+      
       
       # [TABLE DIST_ANC] save table dist_anc at timestep step
       

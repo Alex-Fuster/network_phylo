@@ -222,7 +222,7 @@ get_network_measures_from_adjacency <- function(list_adj_matrix) {
     
     # 4. %T (Top species that have resource species but lack any consumer species)
     
-    n_tops <- length(V(graph)[degree(graph, mode = 'in')>0 & degree(graph, mode = 'out') == 0])
+    n_tops <- length(V(graph)[igraph::degree(graph, mode = 'in')>0 & igraph::degree(graph, mode = 'out') == 0])
     
     df[i, "perc_tops"] <- n_tops/S*100
     
@@ -232,7 +232,7 @@ get_network_measures_from_adjacency <- function(list_adj_matrix) {
     
     #5. % I (Intermediate species that have both resource and consumer species)
     
-    n_int <- length(V(graph)[degree(graph, mode = 'out')>0 & degree(graph, mode = 'in') > 0])
+    n_int <- length(V(graph)[igraph::degree(graph, mode = 'out')>0 & igraph::degree(graph, mode = 'in') > 0])
     
     df[i, "perc_int"] <- n_int/S*100
     
@@ -241,7 +241,7 @@ get_network_measures_from_adjacency <- function(list_adj_matrix) {
     
     #6. % B (Basal species that have consumer species but lack resources species)
     
-    n_basals <- length(V(graph)[degree(graph, mode = 'out')>0 & degree(graph, mode = 'in') == 0])
+    n_basals <- length(V(graph)[igraph::degree(graph, mode = 'out')>0 & igraph::degree(graph, mode = 'in') == 0])
     
     df[i, "perc_basals"] <- n_basals/S*100
     
@@ -263,14 +263,14 @@ get_network_measures_from_adjacency <- function(list_adj_matrix) {
     #8. %Omn (species that eat species at different trophic levels) -> changed for omnivory (general omnivory of the foodweb)
     
     # Compute the trophic level for each node  
-    tlnodes <- neighborhood.size(graph,mode="out")
+    tlnodes <- ego_size(graph,mode="out")
     
     # Calculate the average trophic level of the food web
     TL <- mean(tlnodes)
     
     #Omnivory is based on the calculation of trophic levels, and corresponds to the standard deviation of the trophic levels of a species' prey.
     
-    netmatrix <- get.adjacency(graph, sparse=F)
+    netmatrix <- as_adjacency_matrix(graph, sparse=F)
     # Link the trophic level to the interactions
     webtl <- netmatrix*as.vector(tlnodes)
     # Remove the trophic level when no interactions
@@ -290,12 +290,12 @@ get_network_measures_from_adjacency <- function(list_adj_matrix) {
     #9. Standard deviation of mean generality (GenSD)
     # Generality
     
-    pred <- degree(graph, mode="in")>0 # Identify predator nodes, i.e. taxa with at least one prey
+    pred <- igraph::degree(graph, mode="in")>0 # Identify predator nodes, i.e. taxa with at least one prey
     
-    mean_gen <- mean(degree(graph, mode="in")[pred])
+    mean_gen <- mean(igraph::degree(graph, mode="in")[pred])
     
-    df[i, "mean_gen"] <- mean(degree(graph, mode="in")[pred])
-    df[i, "sd_gen"] <- sd(degree(graph, mode="in")[pred])
+    df[i, "mean_gen"] <- mean(igraph::degree(graph, mode="in")[pred])
+    df[i, "sd_gen"] <- sd(igraph::degree(graph, mode="in")[pred])
     
     
     
@@ -304,10 +304,10 @@ get_network_measures_from_adjacency <- function(list_adj_matrix) {
     # 10. Standard deviation of mean vulnerability (VulSD)
     # Generality
     
-    prey <- degree(graph, mode="out")>0 
+    prey <- igraph::degree(graph, mode="out")>0 
     
-    df[i, "mean_vul"] <- mean(degree(graph, mode="out")[prey])
-    df[i, "sd_vul"] <- sd(degree(graph, mode="out")[prey])
+    df[i, "mean_vul"] <- mean(igraph::degree(graph, mode="out")[prey])
+    df[i, "sd_vul"] <- sd(igraph::degree(graph, mode="out")[prey])
     
     
   }

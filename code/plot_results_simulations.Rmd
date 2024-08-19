@@ -412,6 +412,15 @@ df_div_list_fw <- readRDS(here::here("../network_phylo_large_output/simulation_f
 ```
 
 
+
+```{r}
+df_div_list_fac <- readRDS(here::here("../network_phylo_large_output/neutral/df_div_list/df_div_list_fac_1.rds"))
+df_div_list_comp <- readRDS(here::here("../network_phylo_large_output/neutral/df_div_list/df_div_list_comp_1.rds"))
+df_div_list_fw <- readRDS(here::here("../network_phylo_large_output/neutral/df_div_list/df_div_list_fw_1.rds"))
+```
+
+
+
 ```{r}
 # Combine all dataframes into a single dataframe
 df_combined_fac <- do.call(rbind, df_div_list_fac)
@@ -482,9 +491,9 @@ df_combined_fw <- do.call(rbind, df_div_list_fw)
         
         
         ggarrange(
+          plot_div_fw,
           plot_div_fac,
           plot_div_comp,
-          plot_div_fw,
           
           ncol = 3,
           nrow = 1,
@@ -493,7 +502,7 @@ df_combined_fw <- do.call(rbind, df_div_list_fw)
           common.legend = TRUE
         )
         
-        ggsave(here::here("output/figures/div_curves.png"), height = 5, width = 10)
+   #     ggsave(here::here("output/figures/div_curves_n.png"), height = 5, width = 10)
         
 ```
 

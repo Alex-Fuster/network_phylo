@@ -14,13 +14,9 @@ library(vegan)
 library(ade4)
 library(ape)
 
-source(here::here("code/functions/function_plot_mean_div.R"))
-source(here::here("code/functions/functions_phylosignal.R")) 
-source(here::here("code/functions/functions_compute_phylosignal_nsim.R"))
-source(here::here("code/functions/function_compute_df_phylosign_fromsimulation.R"))
-source(here::here("code/functions/function_compute_df_centr_long.R"))
-source(here::here("code/functions/functions_compute_degree_longev_fromsimulation.R"))
-
+source(here::here("code/functions/functions_simulation.R")) 
+source(here::here("code/functions/function_compute_df_phylosignal.R"))
+source(here::here("code/functions/function_compute_df_centr_longevity.R"))
 
 # foodweb simulation
 source(here::here("code/functions/functions_simulation_fw_normdist.R"))

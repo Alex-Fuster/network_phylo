@@ -63,7 +63,7 @@ df_metrics_emp <- reshape_df_net.metrics(df_metrics = net_metr_empirical,
 source("../functions/functions_simulation_fw.R")
 source("../functions/functions_metrics_networks.R")
 source("../functions/function_plot_mean_div.R")
-source("../functions/functions_simulation_inspection.R")
+source(here::here("code/functions/functions_simulation_inspection.R"))
 ```
 
 

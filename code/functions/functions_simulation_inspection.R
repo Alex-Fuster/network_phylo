@@ -99,7 +99,7 @@ inspect_simulation_fac_comp <- function(simulation_data, interaction_type) {
   net_f <- net_f[names(which(pres_f == 1)), names(which(pres_f == 1))]
   graph <- graph_from_adjacency_matrix(adjmatrix = net_f,
                                        mode = "directed")
-  degree <- degree(graph, mode="all")
+  degree <- igraph::degree(graph, mode="all")
   deg.dist <- degree_distribution(graph, cumulative=T, mode="all")
   spp <- 1:length(deg.dist)
   df_degreeplot <- data.frame(deg.dist, spp)
@@ -253,7 +253,7 @@ inspect_simulation_fw <- function(simulation_data) {
   net_f <- net_f[names(which(pres_f == 1)), names(which(pres_f == 1))]
   graph <- graph_from_adjacency_matrix(adjmatrix = net_f,
                                        mode = "directed")
-  degree <- degree(graph, mode="all")
+  degree <- igraph::degree(graph, mode="all")
   deg.dist <- degree_distribution(graph, cumulative=T, mode="all")
   spp <- 1:length(deg.dist)
   df_degreeplot <- data.frame(deg.dist, spp)

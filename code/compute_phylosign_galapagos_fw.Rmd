@@ -30,6 +30,7 @@ library(readxl)
 library(dplyr)
 library(tidyr)
 library(ggpubr)
+library(viridis)
 
 
 source(here::here("code/functions/functions_phylosignal.R")) 
@@ -249,9 +250,12 @@ data_long <- df_phylosign_with_features |>
 
 # Reorder the data based on `shield`
 data_long <- data_long %>%
-  arrange(shield, island)
+  arrange(shield, island, age) %>%  # Arrange by shield, island, and age
+  group_by(shield) %>%
+  mutate(island = factor(island, levels = unique(island[order(age)]))) %>%  # Ensure unique levels
+  ungroup()
 
-magma_colors <- viridis(3, option = "inferno",begin = 0.2, end = 0.8)
+magma_colors <- viridisLite::viridis(3, option = "inferno", begin = 0.2, end = 0.8)
 
 ggplot(data_long, aes(x = correlation, y = island, fill = type)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.5), width = 0.4) +
@@ -262,9 +266,9 @@ ggplot(data_long, aes(x = correlation, y = island, fill = type)) +
   theme_classic() +
   theme(axis.text.y = element_text(angle = 0, hjust = 1),
         legend.position = "top") +
-  guides(fill = guide_legend(title = NULL))+
-  facet_grid(shield ~ ., scales = "free_y", space = "free_y")+
-  xlab("phylogenetic signal")
+  guides(fill = guide_legend(title = NULL)) +
+  facet_grid(shield ~ ., scales = "free_y", space = "free_y") +
+  xlab("Phylogenetic signal")
 
 #ggsave(here::here("output/figures/phylosign_bars_islands_galapagos.png"), height = 8, width = 5)
 
@@ -287,35 +291,41 @@ data_long <- data_long %>%
 data_long <- data_long |>
   filter(!island %in% c("Mosquera", "Baltra"))
 
-# Create the plot
-plot_fw_galap_age <- ggplot(data_long, aes(x = age, y = correlation, shape = significance_categories)) +
-  geom_point() +
-  #scale_color_manual(values = c("significant" = "red", "marginal" = "blue", "not_significant" = "black")) +
-  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +
-  labs(x = "Age", y = "Phylogenetic signal", color = "Significance", shape = "Significance") +
-  theme_classic()+
-  ylim(0,1)
 
-plot_fw_galap_area <- ggplot(data_long, aes(x = log(area), y = correlation, shape = significance_categories)) +
-  geom_point() +
-  #scale_color_manual(values = c("significant" = "red", "marginal" = "blue", "not_significant" = "black")) +
-  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +
-  labs(x = "log(Area)", y = "Phylogenetic signal", color = "Significance", shape = "Significance") +
-  theme_classic()+
-  ylim(0,1)
+magma_colors <- viridis(3, option = "inferno",begin = 0.2, end = 0.8)
+
+# Create the plot
+plot_fw_galap_age <- ggplot(data_long, aes(x = age, y = correlation, shape = significance_categories, color = type)) +
+  geom_point() +  # Color the points based on `type`
+  geom_smooth(method = "gam", se = FALSE) +  # Add a GAM line colored by `type`
+  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +  # Set shapes
+  scale_color_manual(values = magma_colors, labels = c("cor_mean" = "Mean", "cor_pred" = "Predators", "cor_prey" = "Preys")) +  # Set colors from magma palette
+  labs(x = "Age", y = "Phylogenetic signal", shape = "Significance", color = "Phylogenetic\nsignal") +
+  theme_classic() +
+  ylim(0, 1)
+
+plot_fw_galap_area <- ggplot(data_long, aes(x = log(area), y = correlation, shape = significance_categories, color = type)) +
+  geom_point() +  # Color the points based on `type`
+  geom_smooth(method = "gam", se = FALSE) +  # Add a GAM line colored by `type`
+  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +  # Set shapes
+  scale_color_manual(values = magma_colors, labels = c("cor_mean" = "Mean", "cor_pred" = "Predators", "cor_prey" = "Preys")) +  # Set colors from magma palette
+  labs(x = "log(Area)", y = "Phylogenetic signal", shape = "Significance", color = "Phylogenetic\nsignal") +
+  theme_classic() +
+  ylim(0, 1)
+
+ggarrange(
+  plot_fw_galap_age,
+  plot_fw_galap_area,
+  ncol = 2, nrow = 1,
+  labels = LETTERS[1:2],
+  common.legend = TRUE
+)
+
+ggsave(here::here("output/figures/phylosign_fw_galapagos_areaage.png"), height = 5, width = 9)
+
 
 
 ######################
-
-
-plot_fw_galap_agearea <- ggplot(data_long, aes(x = log(area_age), y = correlation, shape = significance_categories)) +
-  geom_point(color = "black") +  # Use a single color for all points
-  scale_shape_manual(values = c("not_significant" = 1, "marginal" = 16, "significant" = 8)) +  # Set shapes
-  labs(x = "log(Area/Age)", y = "Phylogenetic signal", shape = "Significance") +
-  theme_classic() +
-  ylim(0, 1) 
-
-magma_colors <- viridis(3, option = "inferno",begin = 0.2, end = 0.8)
 
 ggplot(data_long, aes(x = log(area_age), y = correlation, shape = significance_categories, color = type)) +
   geom_point() +  # Color the points based on `type`
@@ -327,6 +337,6 @@ ggplot(data_long, aes(x = log(area_age), y = correlation, shape = significance_c
   ylim(0, 1)
 
 
-#ggsave(here::here("output/figures/phylosign_fw_galapagos.png"), height = 5, width = 5)
+ggsave(here::here("output/figures/phylosign_fw_galapagos.png"), height = 5, width = 5)
 ```
 

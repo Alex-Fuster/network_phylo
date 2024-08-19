@@ -213,6 +213,7 @@ sim_model_bif_fw = function(seed, pars, nsteps) {
             if(int == 1 | int == 2) {
               estab_prob_sel = u_0pos + u_1pos * exp(-a_upos * sum_I)
               estab_prob = SN * (estab_prob_neutral[i]) + (1 - SN) * (estab_prob_sel)
+
             }
             
             # Test if there is establishment of the two new species
@@ -261,6 +262,7 @@ sim_model_bif_fw = function(seed, pars, nsteps) {
             if(int == 1 | int == 2) {
               estab_prob_sel = u_0pos + u_1pos * exp(-a_upos * sum_I)
               estab_prob = SN * (estab_prob_neutral[i]) + (1 - SN) * (estab_prob_sel)
+
             }
             
             # Test if there is establishment of the second species
@@ -340,6 +342,7 @@ sim_model_bif_fw = function(seed, pars, nsteps) {
         ext_prob_sel = ext_prob_sel * competition_factor
         
         ext_prob = SN * (ext_prob_neutral) + (1 - SN) * (ext_prob_sel)
+ 
       }
       
       
