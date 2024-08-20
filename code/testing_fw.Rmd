@@ -14,6 +14,7 @@ library(aricode)
 library(vegan)
 library(ade4)
 library(ape)
+library(tidyr)
 
 source(here::here("code/functions/functions_simulation.R")) 
 source(here::here("code/functions/function_compute_df_phylosignal.R"))
@@ -24,6 +25,20 @@ source(here::here("code/functions/functions_simulation_fw_normdist.R"))
 
 source(here::here("code/functions/functions_simulation_inspection.R"))
 
+```
+
+
+Parameters for plotting
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
 ```
 
 
@@ -324,9 +339,9 @@ pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution
 
 # PROBABILITY OF MUTATION
 
-pars$u_max = 0.23 #0.15 # mutation probability (0.075, )
+pars$u_max = 0.15 #0.15 # mutation probability (0.075, )
 pars$d = 0.5 # Decrease speed of the establishment probability
-pars$I_max = 40 # Maximal number of interactioning species
+pars$I_max = 60 # Maximal number of interactioning species
 #pars$beta_n =  1 # parameter of the beta distribution 
 
 # STRENGTH OF NEUTRAL-DRIVEN EVOLUTION
@@ -386,7 +401,7 @@ Change pars$SN to simulate different scenarios:
 
 ```{r}
 
-pars$SN = 0 # strength for neutral-driven evolution
+pars$SN = 1 # strength for neutral-driven evolution
 pars$estab_prob_neutral = rep(0.6, pars$Smax) # neutral probability of establishment
 pars$ext_prob_neutral = 0.07 #0.0003 # neutral probability of extinction
 
@@ -394,16 +409,16 @@ pars$ext_prob_neutral = 0.07 #0.0003 # neutral probability of extinction
 
 
 ---------------------------
-TESTING
+TESTING for neutral
 
 ```{r}
 pars$I_max <- 100  # Increase the maximum number of species allowed to interact
-pars$u_max <- 0.15  # Decrease the upper bound on speciation probability
-pars$d <- 0.75  # Decrease the rate at which speciation probability drops with increasing S
-pars$sd <- 0.5 * pars$av_r + 0.001  # Increase the trait variability during speciation
-pars$competition_coefficient <- 0.025  # Reduce the impact of competition
+#pars$u_max <- 0.15  # Decrease the upper bound on speciation probability
+#pars$d <- 0.75  # Decrease the rate at which speciation probability drops with increasing S
+pars$sd <- 0.6 * pars$av_r + 0.001  # Increase the trait variability during speciation
+#pars$competition_coefficient <- 0.025  # Reduce the impact of competition
 
-pars$u_max <- 0.25  # Increase the upper bound on speciation probability
+#pars$u_max <- 0.25  # Increase the upper bound on speciation probability
 
 ```
 
@@ -493,8 +508,7 @@ list_phylo_dist <- dist_matrices$list_phylo_dist
 
 ```{r}
 
-library(reshape2)
-library(tidyr)
+I_max <- pars$I_max
 
 timestep <- vector()
 S <- vector()
@@ -548,6 +562,7 @@ ggplot(df_results, aes(x = S, y = cor)) +
   geom_smooth(method = "gam", formula = y ~ s(x)) + # Add GAM smooth lines for both
   labs(x = "Community Size (S)", y = "Procrustes Correlation") +
   theme_classic()+
+  geom_vline(xintercept = I_max, linetype = "dashed") +
   ylim(0,1)
 
 
@@ -572,7 +587,7 @@ inspect_simulation_fw(simulation_data = res_sim)
 
 #Test 1: Control for Matrix Size
 
-For this test, we will subsample the larger matrices to match the size of the smallest matrix in your list (i.e., the number of species at the beginning of your simulation). 
+For this test, we will subsample the larger matrices to match the size of a small subset of species
 
 ```{r}
 
@@ -583,7 +598,7 @@ subsample_matrix <- function(mat, size) {
   mat[rows, rows]
 }
 
-min_size = 5
+min_size = 8
 
 # Initialize the dataframe
 df_cor <- data.frame(matrix(ncol = 3, nrow = 0, dimnames = list(NULL, c("timestep", "S", "vec_cor"))))
@@ -599,7 +614,6 @@ for (i in 1:length(list_int_dist_mean)) {
     next
   }
   
-  
   # Run Procrustes test
   proc <- tryCatch({
     protest(int_sub, phylo_sub)
@@ -611,7 +625,7 @@ for (i in 1:length(list_int_dist_mean)) {
   
   # Create a temporary dataframe for this timestep
   df_i <- data.frame(timestep = i, 
-                     S = ncol(list_int_dist_mean[[i]]), 
+                     S = ncol(int_sub), 
                      vec_cor = proc$t0)
   
   # Bind the result to df_cor
@@ -619,8 +633,14 @@ for (i in 1:length(list_int_dist_mean)) {
 }
 
 
-df_cor
 
+
+ggplot(df_cor, aes(x = timestep, y = vec_cor)) +
+  geom_point() + # Plot points for both types
+  geom_smooth(method = "gam", formula = y ~ s(x)) + # Add GAM smooth lines for both
+  labs(x = "timestep", y = "Procrustes Correlation on S = 8") +
+  theme_classic()+
+  ylim(0,1)
 
 ```
 
@@ -641,23 +661,19 @@ proc_corr_null <- sapply(seq_along(list_int_dist_mean), function(i) {
 options(scipen = 999)
 proc_corr_null # Procrustes correlations for the null model
 
+df_null <- data.frame("timesteps" = 1:length(proc_corr_null),
+                      "proc_corr_null" = proc_corr_null)
+
+ggplot(df_null, aes(x = timesteps, y = proc_corr_null)) +
+  geom_point() + # Plot points for both types
+  geom_smooth(method = "gam", formula = y ~ s(x)) + # Add GAM smooth lines for both
+  labs(x = "timestep", y = "Procrustes Correlation") +
+  theme_classic()+
+  ylim(0,1)
+
 ```
 
-# 3. Scaling effects
 
-normalize the Procrustes correlation values by matrix size to check for scaling effects
-
-```{r}
-# Run Procrustes and normalize by matrix size
-proc_corr_scaled <- sapply(seq_along(list_int_dist_mean), function(i) {
-  int_mat <- list_int_dist_mean[[i]]
-  phylo_mat <- list_phylo_dist[[i]]
-  proc <- protest(int_mat, phylo_mat)
-  proc$t0 / nrow(int_mat) # Normalize by matrix size
-})
-
-proc_corr_scaled # Normalized Procrustes correlations
-```
 
 
 
