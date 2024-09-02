@@ -184,7 +184,7 @@ inspect_simulation_fac_comp <- function(simulation_data, interaction_type) {
 ####################
 
 
-inspect_simulation_fw <- function(simulation_data) {
+inspect_simulation_fw <- function(simulation_data, nbasals, Smax) {
   
   
   # count number of timesteps where there are spp
@@ -244,7 +244,7 @@ inspect_simulation_fw <- function(simulation_data) {
   net_f <- simulation_data$network_list[[length(simulation_data$network_list)]]
   
   
-  net_f <- net_f[26:1025,]
+  net_f <- net_f[(nbasals+1):(Smax+nbasals),]
   
   colnames(net_f) <- seq(1:1000)
   rownames(net_f) <- seq(1:1000)

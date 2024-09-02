@@ -65,7 +65,7 @@ sub.tree <- drop.tip(phylo.tree, dropme)
 
 
 
-## Loop to compute phylogenetic signal for each island foodweb
+## Loop to compute phylogenetic signal for each island foodweb (method 1)
 
 ```{r}
 
@@ -255,6 +255,11 @@ data_long <- data_long %>%
   mutate(island = factor(island, levels = unique(island[order(age)]))) %>%  # Ensure unique levels
   ungroup()
 
+# take out islands with less than 10 species
+
+data_long <- data_long |> 
+  filter(!(island %in% c("Darwin", "Mosquera")))
+
 magma_colors <- viridisLite::viridis(3, option = "inferno", begin = 0.2, end = 0.8)
 
 ggplot(data_long, aes(x = correlation, y = island, fill = type)) +
@@ -288,9 +293,6 @@ data_long <- data_long %>%
   ),
   area_age = area/age)
 
-data_long <- data_long |>
-  filter(!island %in% c("Mosquera", "Baltra"))
-
 
 magma_colors <- viridis(3, option = "inferno",begin = 0.2, end = 0.8)
 
@@ -321,7 +323,7 @@ ggarrange(
   common.legend = TRUE
 )
 
-ggsave(here::here("output/figures/phylosign_fw_galapagos_areaage.png"), height = 5, width = 9)
+#ggsave(here::here("output/figures/phylosign_fw_galapagos_areaage.png"), height = 5, width = 9)
 
 
 
@@ -337,6 +339,117 @@ ggplot(data_long, aes(x = log(area_age), y = correlation, shape = significance_c
   ylim(0, 1)
 
 
-ggsave(here::here("output/figures/phylosign_fw_galapagos.png"), height = 5, width = 5)
+#ggsave(here::here("output/figures/phylosign_fw_galapagos.png"), height = 5, width = 5)
+```
+
+#######################################
+
+
+# sdv
+
+```{r}
+df_phylosign <- data.frame(matrix(ncol = 13,
+                                  nrow = 0, 
+                                  dimnames = list(NULL, c("island",
+                                                          "cor_mean",
+                                                          "sign_mean",
+                                                          "cor_pred",
+                                                          "sign_pred",
+                                                          "cor_prey",
+                                                          "sign_prey",
+                                                          "fw_matrix",
+                                                          "subtree",
+                                                          "distmat_phylo_dist",
+                                                          "distmat_int_dist_mean",
+                                                          "distmat_int_dist_pred",
+                                                          "distmat_int_dist_prey"))))
+
+for (i in unique(names(metaweb_pariles))) {
+  
+  ## Get the island network and name
+  island <- names(metaweb_pariles[i])
+  matrix_int <- metaweb_pariles[[i]]
+  
+  # Compute tree subsetting by spp present in the island
+  sub.tree_island <- drop.tip(sub.tree, sub.tree$tip.label[!sub.tree$tip.label %in% colnames(matrix_int)])
+  
+  # Compute phylogenetic distance matrix
+  #tree_raw <- paste(sub.tree_island, "root")
+  tree_corrected<-sub.tree_island
+  tree_corrected$edge.length<-sapply(tree_corrected$edge.length,function(x) ifelse(x==0,1e-5,x))
+  phylo.vcv<-vcv(tree_corrected)
+  phylo.corr<-cov2cor(phylo.vcv)
+  svd_eigen.phy<-eigen(phylo.corr, symmetric = T)$vec
+  
+  # Compute interaction distance matrices
+  # Retain only species that are present in the tree
+  matrix_int <- matrix_int[rownames(phylo.corr), colnames(phylo.corr)]
+  
+  svd_result <- svd(matrix_int)
+  
+  # Extract left (U), middle (D), and right (V) matrices
+  U <- svd_result$u       # Left matrix (n_prey x kept axes)
+  D <- diag(svd_result$d) # Middle matrix (kept axes x kept axes)
+  V <- svd_result$v       # Right matrix (n_predators x kept axes)
+  
+  # Decide on the number of axes to keep
+  kept_axes <- ncol(matrix_int)  # For example, keep the first 3 axes
+  
+  # Select the kept axes from U, D, and V
+  U_kept <- U[, 1:kept_axes]   # n_prey x kept axes
+  D_kept <- D[1:kept_axes, 1:kept_axes] # kept axes x kept axes
+  V_kept <- V[, 1:kept_axes]   # n_predators x kept axes
+  
+  # Transpose the right matrix V to match the desired output
+  V_kept_transposed <- t(V_kept)  # Transpose to get (kept axes x n_predators)
+  
+  
+  
+  # Extract singular values from the original SVD for the interaction matrix
+  svd_result <- svd(matrix_int)
+  singular_values <- svd_result$d
+  
+  # Compute cumulative explained variance for the interaction matrix
+  cum_var_pred <- cumsum(singular_values^2) / sum(singular_values^2)
+  
+  # Compute cumulative explained variance for the phylogenetic matrix
+  eigenvalues_phy <- eigen(phylo.corr, symmetric = TRUE)$values
+  cum_var_phy <- cumsum(eigenvalues_phy) / sum(eigenvalues_phy)
+  
+  # Determine the number of axes needed to reach the threshold (90% variance)
+  num_axes_pred <- min(which(cum_var_pred >= threshold))
+  num_axes_phy <- min(which(cum_var_phy >= threshold))
+  
+  # Decide on the number of axes to keep: the maximum of the two
+  num_axes_to_keep <- max(num_axes_pred, num_axes_phy)
+  
+  # Adjust matrices to keep only the necessary axes
+  svd_pred_kept <- V_kept_transposed[, 1:num_axes_to_keep]
+  svd_phy_kept <- svd_eigen.phy[, 1:num_axes_to_keep]
+  
+  # Run Procrustes analysis on the selected axes
+  proc <- protest(svd_pred_kept, svd_phy_kept)
+  
+  # Save data
+  df_phylosign_island <- data.frame(
+    island = island,
+    cor_mean = proc$t0,
+    sign_mean = proc$signif,
+    cor_pred = proc$t0,
+    sign_pred = proc$signif,
+    cor_prey = proc$t0,
+    sign_prey = proc$signif,
+    stringsAsFactors = FALSE
+  )
+  
+   df_phylosign_island$fw_matrix <- list(matrix_int)
+   df_phylosign_island$subtree <- list(sub.tree_island)
+   df_phylosign_island$distmat_phylo_dist <- list(phylo.corr)
+   df_phylosign_island$distmat_int_dist_mean <- list(matrix_int)
+   df_phylosign_island$distmat_int_dist_pred <- list(matrix_int)
+   df_phylosign_island$distmat_int_dist_prey <- list(matrix_int)
+  
+  df_phylosign <- rbind(df_phylosign, df_phylosign_island)
+}
 ```
 
