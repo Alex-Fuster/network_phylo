@@ -1,0 +1,71 @@
+1. Correlations decrease with S but all converge to the same values more or less (~0.4)
+
+=> the pattern could be due to (i) the way the niche model behaves (it's a very peculiar way to build a food web), (ii) the way mutation shifts trait values (since you will have more and more effective mutation events with larger species richness) if this mutation process is unable to decrease the phylo signal below 0.3-0.4, (iii) an artefact of Procrustes 
+
+One tricky thing I noticed is that you run Procrustes on distance matrices (interaction distances vs. phylogenetic distances):
+
+proc <- protest(list_int_dist_mean[[i]], list_phylo_dist[[i]])
+
+However, since distance matrices are symmetric (i.e. they are within a peculiar class of matrices), there might be a very strong constraint against low correlation between two symmetric matrices.
+The function protest in vegan is supposed to work on any matrix (in fact it was developed to be used on the results of ordination analyses, e.g. a presence-absence x sites table after a canonical analysis or an abundance x sites table after PCA).
+
+
+
+2. Neutral scenarios show the same pattern than selection-driven ones
+
+=> extinction and establishment (i.e. the fact that a given species occurs at some point in time) are probably not very important to determine the phylogenetic signal
+=> If new species are generated all the time, maybe species persistence (which is more likely at low richness than at high richness if "selection" is acting on the species) is not required to produce the signal, it's just the normal by-product of a Brownian motion acting on the trait values. As long as the "selection" effect is not to block some part of niche space completely, but just to delay the inevitable filling of niche space, I don't see why there should be a difference between neutral and non-neutral scenarios.
+=> But also, considering the above considerations on Procrustes run on distance matrices, I would not be surprised if the similarity just stemmed from this artefact.
+
+
+NB: regarding your tests, I think it's logical that phylo signal should erode more with larger mutation steps (the interactions of daughter species are going to be much different from those of the mother species). But again (see below) this depends on what Fig. 1 and similar plots mean with their x-axis (is it time-related?)
+NB2: the test against null model on page 7 indicates that the signal can get lower than 0.3 => because the matrices are randomized here, and thus probably not symmetric anymore (how did you randomize?) this seems to corroborate my remark on the constraint of Procrustes on distance matrices
+
+Various remarks
+* phylogenetic signal = Procrustes between interaction (how is it defined?) and phylogeny (same question) matrices -- I had to guess a lot here...
+* in the first figure: is species richness a controlled parameter or an emerging property (and what we are looking at is the "trajectory" of a simulation as it accumulates species?)
+* is the interaction matrix looking at instances of species being predator or prey? (among rows and cols, which is which?) -- with the shared_victims line, it looks like it is recording species as predator in columns
+* I didn't get whether basal species mutated and speciated and went extinct like all others or not.
+* why is establishment decreasing with the number of interactions (in the code)? and extinction also decreases with the number of interactions? (looks more logical for extinction given the arguments of the TTIB, but the scenario '2' seems to count interactions as victim as well) These are kind of arbitrary choices...
+* where is neutrality enforced? (which process?) -- apparently, if I look for 'SN', it occurs in establishment and extinction. This wording is very very weird because selection in the true sense does not act on species but on individuals...
+* mutation: why o = n/2 after mutation? this means there is only one trait evolving after the first generation of mutants... and also that the number of interactors is easy to predict from the trait value (given that r is apparently the same for all species)
+* by the way: why did you choose to have r constant among species? It's not the choice of WIlliams and Martinez.
+* why the truncated gaussian for mutation and not a beta-distributed variable?
+* why is I_max a parameter and not an emerging property of the model?
+* YOu could use the classic functions for the niche model instead (see end of this file). This function generates a random FW of given connectance, but you can get inspiration from the way the predation function is written (it's clearer than the code you sent me)
+
+
+* why Procrustes and not RDA/CCA? Or why not Procrustes directly on (i) interaction matrix (who eats whom) vs. (ii) phylogenetic similarity matrix (phylo tree with some arbitrarily small distance to null branch length-> variance-covariance matrix -> correlation matrix -> singular value decomposition eigenvectors as representing the phylogeny)
+Here is a sample code that kind of does that:
+
+tree_raw<-read.tree("MYTREE")
+#OR 
+tree_raw<-read.nexus("MYTREE.tre")
+#...or some other format of trees
+tree_corrected<-tree_raw
+tree_corrected$edge.length<-sapply(tree_corrected$edge.length,function(x) ifelse(x==0,1e-5,x))
+phylo.vcv<-vcv(tree_corrected)
+phylo.corr<-cov2cor(phylo.vcv)
+match_phylogeny_interaction <- match(rownames(data.inter), rownames(phylo.corr))
+svd_eigen.phy<-eigen(phylo.corr[match_phylogeny_interaction, match_phylogeny_interaction], symmetric = T)$vec
+
+
+
+TO SIMULATE A NICHE MODEL-BASED FOOD WEB
+
+niche_matrix<-function(connectance,nspecies){ #Williams-Martinez model
+	n_i<-runif(nspecies)
+	r_i<-rbeta(nspecies,1,(1/(2*connectance))-1)
+	r_i<-r_i*n_i
+	c_i<-sapply(1:nspecies,function(x) runif(1,min=r_i[x]/2,max=n_i[x]))
+	pred_function<-function(z_1,z_2){
+		if((n_i[z_1]<=c_i[z_2]+0.5*r_i[z_2])&(n_i[z_1]>=c_i[z_2]-0.5*r_i[z_2])) {
+			1
+		}
+		else{
+			0
+		}
+	}
+	mat<-sapply(1:nspecies,function(x) sapply(1:nspecies,function(y) pred_function(y,x)))
+	list("matrix"=mat,"n"=n_i,"r"=r_i,"c"=c_i)
+}

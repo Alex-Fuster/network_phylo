@@ -21,7 +21,8 @@ source(here::here("code/functions/function_compute_df_phylosignal.R"))
 source(here::here("code/functions/function_compute_df_centr_longevity.R"))
 
 # foodweb simulation
-source(here::here("code/functions/functions_simulation_fw_normdist.R"))
+#source(here::here("code/functions/functions_simulation_fw_normdist.R"))
+source(here::here("code/functions/functions_simulation_fw_beta.R"))
 
 source(here::here("code/functions/functions_simulation_inspection.R"))
 
@@ -48,7 +49,7 @@ my.theme<-theme(axis.text=element_text(size=12),
 
 
 
-compute_dist_matrices <- function(results_simulation, int, Smax) {
+compute_dist_matrices <- function(results_simulation, int, Smax, nbasals) {
   
   presence_matrix <- results_simulation$presence_matrix
   
@@ -83,7 +84,7 @@ compute_dist_matrices <- function(results_simulation, int, Smax) {
   
   if(int == "foodweb"){
     #### Eliminate basal species
-    Sbasals <- length(results_simulation$basal)
+    Sbasals <- nbasals
     network_list <- lapply(network_list, eliminate_basals, nbasals = Sbasals)
   }
   
@@ -100,30 +101,6 @@ compute_dist_matrices <- function(results_simulation, int, Smax) {
   if(length(list_anc_dist_letters) != length(list_networks_sppnames_letters)){
     print("PROBLEM - list_anc_dist_letters != list_networks_sppnames_letters")
   } 
-  ## -------------------
-  
-  
-  ## Loop for obtaining phylogenetic distances:
-  list_newick <- list()
-  list_trees <- list()
-  list_newick_tails <- list()
-  list_dist.phylo <- list()
-  
-  for (i in 1:length(list_anc_dist_letters)) {
-    list_newick[[i]] <- ToPhylo(list_anc_dist_letters[[i]])
-    list_newick_tails[[i]] <- paste(list_newick[[i]], "root")
-    list_trees[[i]] <- read.tree(text = sub("A root",";",list_newick_tails[[i]]))
-    list_dist.phylo[[i]] <- cophenetic.phylo(list_trees[[i]])
-  }
-  
-  
-  ## ------------------- Check
-  if (length(which(unlist(lapply(list_dist.phylo, is.null)) == TRUE)) != 0) {
-    print("PROBLEM - nulls in list_dist.phylo")
-  }
-  if (length(list_dist.phylo) != length(list_networks_sppnames_letters)){
-    print("PROBLEM - length(list_dist.phylo) != length(list_networks_sppnames_letters)")
-  }
   ## -------------------
   
   
@@ -146,29 +123,50 @@ compute_dist_matrices <- function(results_simulation, int, Smax) {
   presence_matrix <- presence_matrix[(final.discarded_timestep+1):length(results_simulation$list_anc_dist),]
   
   
-  
   ## ------------------- Check
   
-  if(nrow(presence_matrix) != length(list_networks_sppnames_letters) | 
-     nrow(presence_matrix) != length(list_dist.phylo)){
+  if(nrow(presence_matrix) != length(list_networks_sppnames_letters)){
     print("PROBLEM - presence matrix, list phylo dist and list interaction networks dont have the same n_steps")
+  }
+  
+  ## -------------------
+  
+  ## Loop for obtaining phylogenetic distances:
+  list_svd_eigen.phy <- list()
+  list_phylo.corr_cropped <- list()
+
+  
+  for (i in 1:length(list_anc_dist_letters)) {
+    newick <- ToPhylo(list_anc_dist_letters[[i]])
+    newick_tail <- paste(newick, "root")
+    tree <- read.tree(text = sub("A root",";",newick_tail))
+    #list_dist.phylo[[i]] <- cophenetic.phylo(tree)
+    
+    tree$edge.length<-sapply(tree$edge.length,function(x) ifelse(x==0,1e-5,x))
+    phylo.vcv<-vcv(tree)
+    phylo.corr<-cov2cor(phylo.vcv)
+    list_phylo.corr_cropped[[i]] <- phylo.corr[names(which(presence_matrix[i,] == 1)), 
+                                        names(which(presence_matrix[i,] == 1))]
+    list_svd_eigen.phy[[i]] <-eigen(list_phylo.corr_cropped[[i]], symmetric = T)$vec
+  }
+  
+  
+  ## ------------------- Check
+  if (length(which(unlist(lapply(list_svd_eigen.phy, is.null)) == TRUE)) != 0) {
+    print("PROBLEM - nulls in list_dist.phylo")
+  }
+  if (length(list_svd_eigen.phy) != length(list_networks_sppnames_letters)){
+    print("PROBLEM - length(list_dist.phylo) != length(list_networks_sppnames_letters)")
   }
   ## -------------------
   
-  
-  #### Retain only present species in phylogenetic distance matrices
-  list_dist.phylo_pres <- list()
-  
-  for (i in 1:length(list_dist.phylo)) {
-    list_dist.phylo_pres[[i]] <- list_dist.phylo[[i]][names(which(presence_matrix[i,] == 1)), names(which(presence_matrix[i,] == 1))]
-  }
   
   
   ## ------------------- Check
   #Check that phylogenetic distance matrices retain present species:
   vec_error <- c()
   for (i in 1:nrow(presence_matrix)) {
-    vec_tf <-  names(presence_matrix[i, which(presence_matrix[i,] == 1)]) == colnames(list_dist.phylo_pres[[i]])
+    vec_tf <-  names(presence_matrix[i, which(presence_matrix[i,] == 1)]) == colnames(list_svd_eigen.phy[[i]])
     if(length(which(vec_tf == FALSE)) > 0){
       vec_error[i] <- "error"
     } else if (length(which(vec_tf == FALSE)) == 0 ){
@@ -189,60 +187,91 @@ compute_dist_matrices <- function(results_simulation, int, Smax) {
   }
   
   
+  
+  
+  
+  #############################################################################
+  
+  
   ## Compute interaction distances (NMI)
-  list_interact_distances_pred <- lapply(list_net_present_spp.letters, FUN = compute_nmi_aricode_pred)
-  list_interact_distances_prey <- lapply(list_net_present_spp.letters, FUN = compute_nmi_aricode_prey)
-  # set diagonal to 0
-  list_interact_distances_pred <- lapply(list_interact_distances_pred, FUN = diag_to0)
-  list_interact_distances_prey <- lapply(list_interact_distances_prey, FUN = diag_to0)
-  # Assign 0 to NaN
-  list_interact_distances_pred_corrected <- list()
-  list_interact_distances_prey_corrected <- list()
+  # list_interact_distances_pred <- lapply(list_net_present_spp.letters, FUN = compute_nmi_aricode_pred)
+  # list_interact_distances_prey <- lapply(list_net_present_spp.letters, FUN = compute_nmi_aricode_prey)
+  # # set diagonal to 0
+  # list_interact_distances_pred <- lapply(list_interact_distances_pred, FUN = diag_to0)
+  # list_interact_distances_prey <- lapply(list_interact_distances_prey, FUN = diag_to0)
+  # # Assign 0 to NaN
+  # list_interact_distances_pred_corrected <- list()
+  # list_interact_distances_prey_corrected <- list()
+  # 
+  # for (i in 1:length(list_interact_distances_pred)) {
+  #   list_interact_distances_pred_corrected[[i]] <- convet_nan_to_0_matrix(matrix = list_interact_distances_pred[[i]], marg = 2) 
+  # }
+  # 
+  # for (i in 1:length(list_interact_distances_prey)) {
+  #   list_interact_distances_prey_corrected[[i]] <- convet_nan_to_0_matrix(matrix = list_interact_distances_prey[[i]], marg = 1)
+  # }
+  # 
+  # 
+  # ## ------------------- Check
+  # if(length(list_interact_distances_prey_corrected) != length(list_interact_distances_pred_corrected) |
+  #    length(list_interact_distances_prey_corrected) != length(list_dist.phylo_pres)){
+  #   
+  #   print("PROBLEM - lists of phylo dist and interactions dont the same length")
+  #   
+  # } 
+  # ## -------------------
+  # 
+  # 
+  # 
+  # # Compute mean distance (as preys and predators)
+  # list_interact_distances_mean_corrected <- list()
+  # 
+  # for (i in 1:length(list_interact_distances_pred_corrected)) {
+  #   list_interact_distances_mean_corrected[[i]] <- (list_interact_distances_pred_corrected[[i]] + list_interact_distances_prey_corrected[[i]]) / 2
+  # }
   
-  for (i in 1:length(list_interact_distances_pred)) {
-    list_interact_distances_pred_corrected[[i]] <- convet_nan_to_0_matrix(matrix = list_interact_distances_pred[[i]], marg = 2) 
+  
+  list_svd_pred <- list()
+  
+  for (i in 1:length(list_net_present_spp.letters)) {
+    
+    # Perform SVD
+    svd_result <- svd(list_net_present_spp.letters[[i]])
+    
+    # Extract left (U), middle (D), and right (V) matrices
+    U <- svd_result$u       # Left matrix (n_prey x kept axes)
+    D <- diag(svd_result$d) # Middle matrix (kept axes x kept axes)
+    V <- svd_result$v       # Right matrix (n_predators x kept axes)
+    
+    # Decide on the number of axes to keep
+    kept_axes <- ncol(list_net_present_spp.letters[[i]])  # For example, keep the first 3 axes
+    
+    # Select the kept axes from U, D, and V
+    U_kept <- U[, 1:kept_axes]   # n_prey x kept axes
+    D_kept <- D[1:kept_axes, 1:kept_axes] # kept axes x kept axes
+    V_kept <- V[, 1:kept_axes]   # n_predators x kept axes
+    
+    # Transpose the right matrix V to match the desired output
+    list_svd_pred[[i]] <- t(V_kept)  
+    
   }
   
-  for (i in 1:length(list_interact_distances_prey)) {
-    list_interact_distances_prey_corrected[[i]] <- convet_nan_to_0_matrix(matrix = list_interact_distances_prey[[i]], marg = 1)
-  }
   
   
   ## ------------------- Check
-  if(length(list_interact_distances_prey_corrected) != length(list_interact_distances_pred_corrected) |
-     length(list_interact_distances_prey_corrected) != length(list_dist.phylo_pres)){
-    
-    print("PROBLEM - lists of phylo dist and interactions dont the same length")
-    
-  } 
-  ## -------------------
-  
-  
-  
-  # Compute mean distance (as preys and predators)
-  list_interact_distances_mean_corrected <- list()
-  
-  for (i in 1:length(list_interact_distances_pred_corrected)) {
-    list_interact_distances_mean_corrected[[i]] <- (list_interact_distances_pred_corrected[[i]] + list_interact_distances_prey_corrected[[i]]) / 2
-  }
-  
-  
-  
-  ## ------------------- Check
-  if(length(list_interact_distances_mean_corrected) != length(list_dist.phylo_pres)){
+  if(length(list_svd_pred) != length(list_svd_eigen.phy)){
     print("PROBLEM - length(list_interact_distances_mean_corrected) != length(list_dist.phylo_pres")
   }
-  if(length(list_dist.phylo) != length(list_interact_distances_pred) |
-     length(list_dist.phylo) != length(list_interact_distances_prey)) {
+  if(length(list_svd_eigen.phy) != length(list_svd_pred)) {
     print("PROBLEM - list phylo dist and lists interact dist dont have the same length")
   } 
   
   vec_problems_ncol <- c()
   
-  for (i in 1:length(list_interact_distances_mean_corrected)) {
-    if(ncol(list_interact_distances_mean_corrected[[i]]) != ncol(list_dist.phylo_pres[[i]])){
+  for (i in 1:length(list_svd_pred)) {
+    if(ncol(list_svd_pred[[i]]) != ncol(list_svd_eigen.phy[[i]])){
       vec_problems_ncol[i] <- "P"
-    } else if(ncol(list_interact_distances_mean_corrected[[i]]) == ncol(list_dist.phylo_pres[[i]])){
+    } else if(ncol(list_svd_pred[[i]]) == ncol(list_svd_eigen.phy[[i]])){
       vec_problems_ncol[i] <- "g"
     }
   }
@@ -252,8 +281,8 @@ compute_dist_matrices <- function(results_simulation, int, Smax) {
   
   vec_problems_sppcomp <- c()
   
-  for (i in 1:length(list_dist.phylo_pres)) {
-    vec_problems_sppcomp[i] <- identical(sort(colnames(list_interact_distances_mean_corrected[[i]])), sort(colnames(list_dist.phylo_pres[[i]])))
+  for (i in 1:length(list_svd_eigen.phy)) {
+    vec_problems_sppcomp[i] <- identical(sort(colnames(list_svd_pred[[i]])), sort(colnames(list_svd_eigen.phy[[i]])))
   }
   if(length(which(vec_problems_ncol == "FALSE") > 0)){
     print("PROBLEM -  Interact and phylo dist. matrices dont have the order of colnames")
@@ -261,8 +290,8 @@ compute_dist_matrices <- function(results_simulation, int, Smax) {
   
   vec_problems <- c()
   
-  for (i in 1:length(list_interact_distances_mean_corrected)) {
-    vec_truefalse <- colnames(list_interact_distances_mean_corrected[[i]]) == colnames(list_dist.phylo_pres[[i]])
+  for (i in 1:length(list_svd_pred)) {
+    vec_truefalse <- colnames(list_svd_pred[[i]]) == colnames(list_svd_eigen.phy[[i]])
     if(FALSE %in% vec_truefalse){
       vec_problems[i] <- "P"
     }else{
@@ -277,39 +306,45 @@ compute_dist_matrices <- function(results_simulation, int, Smax) {
   
   
   
-  ## make sure we have matrices
-  list_dist_dist.phylo_pres <- list()
-  list_dist_interact_distances_pred_corrected <- list()
-  list_dist_interact_distances_prey_corrected <- list()
-  list_dist_interact_distances_mean_corrected <- list()
-  
-  for (i in 1:length(list_dist.phylo_pres)) {
-    list_dist_dist.phylo_pres[[i]] <- as.matrix(list_dist.phylo_pres[[i]])
-    list_dist_interact_distances_pred_corrected[[i]] <- as.matrix(list_interact_distances_pred_corrected[[i]])
-    list_dist_interact_distances_prey_corrected[[i]] <- as.matrix(list_interact_distances_prey_corrected[[i]])
-    list_dist_interact_distances_mean_corrected[[i]] <- as.matrix(list_interact_distances_mean_corrected[[i]])
-  }
+  # ## make sure we have matrices
+  # list_dist_dist.phylo_pres <- list()
+  # list_dist_interact_distances_pred_corrected <- list()
+  # list_dist_interact_distances_prey_corrected <- list()
+  # list_dist_interact_distances_mean_corrected <- list()
+  # 
+  # for (i in 1:length(list_dist.phylo_pres)) {
+  #   list_dist_dist.phylo_pres[[i]] <- as.matrix(list_dist.phylo_pres[[i]])
+  #   list_dist_interact_distances_pred_corrected[[i]] <- as.matrix(list_interact_distances_pred_corrected[[i]])
+  #   list_dist_interact_distances_prey_corrected[[i]] <- as.matrix(list_interact_distances_prey_corrected[[i]])
+  #   list_dist_interact_distances_mean_corrected[[i]] <- as.matrix(list_interact_distances_mean_corrected[[i]])
+  # }
   
   
   
   
   # identify what matrices have all interaction distances = 0 and discard them
+  # 
+  # vec_timesteps_all0 <- which(lapply(list_interact_distances_pred_corrected,check_matrix.with.values) != TRUE)
+  # 
+  # if(length(vec_timesteps_all0) > 0){
+  #   list_dist_dist.phylo_pres <- list_dist_dist.phylo_pres[-c(vec_timesteps_all0)]
+  #   list_dist_interact_distances_pred_corrected <- list_dist_interact_distances_pred_corrected[-c(vec_timesteps_all0)]
+  #   list_dist_interact_distances_prey_corrected <- list_dist_interact_distances_prey_corrected[-c(vec_timesteps_all0)]
+  #   list_dist_interact_distances_mean_corrected <- list_dist_interact_distances_mean_corrected[-c(vec_timesteps_all0)]
+  #   
+  # }
   
-  vec_timesteps_all0 <- which(lapply(list_interact_distances_pred_corrected,check_matrix.with.values) != TRUE)
   
-  if(length(vec_timesteps_all0) > 0){
-    list_dist_dist.phylo_pres <- list_dist_dist.phylo_pres[-c(vec_timesteps_all0)]
-    list_dist_interact_distances_pred_corrected <- list_dist_interact_distances_pred_corrected[-c(vec_timesteps_all0)]
-    list_dist_interact_distances_prey_corrected <- list_dist_interact_distances_prey_corrected[-c(vec_timesteps_all0)]
-    list_dist_interact_distances_mean_corrected <- list_dist_interact_distances_mean_corrected[-c(vec_timesteps_all0)]
-    
-  }
+  # result <- list("list_svd_pred" = list_dist_interact_distances_pred_corrected,
+  #      "list_int_dist_prey" = list_dist_interact_distances_prey_corrected,
+  #      "list_int_dist_mean" = list_dist_interact_distances_mean_corrected,
+  #      "list_phylo_dist" = list_dist_dist.phylo_pres,
+  #      "list_trees" = list_trees)
   
-  
-  result <- list("list_int_dist_pred" = list_dist_interact_distances_pred_corrected,
-       "list_int_dist_prey" = list_dist_interact_distances_prey_corrected,
-       "list_int_dist_mean" = list_dist_interact_distances_mean_corrected,
-       "list_phylo_dist" = list_dist_dist.phylo_pres)
+  result <- list("list_svd_pred" = list_svd_pred,
+                 "list_svd_eigen.phy" = list_svd_eigen.phy,
+                 "list_net_present_spp.letters" = list_net_present_spp.letters,
+                 "list_phylo.corr_cropped" = list_phylo.corr_cropped)
   
   return(result)
 }
@@ -329,7 +364,7 @@ pars = list()
 
 
 pars$competition_coefficient = 0.025
-pars$Sbasal = 25 # number of basal species
+pars$Sbasal = 10 # number of basal species
 pars$Smax = 1000 # Maximal number of species allowed
 #pars$Bspe = 4 # Basal species impact on the speciation probality
 #pars$Bext = 4 # Basal species impact on extinction probability
@@ -339,10 +374,10 @@ pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution
 
 # PROBABILITY OF MUTATION
 
-pars$u_max = 0.15 #0.15 # mutation probability (0.075, )
+pars$u_max = 0.23#0.15 #0.15 # mutation probability (0.075, )
 pars$d = 0.5 # Decrease speed of the establishment probability
 pars$I_max = 60 # Maximal number of interactioning species
-#pars$beta_n =  1 # parameter of the beta distribution 
+pars$beta_n =  1 # parameter of the beta distribution 
 
 # STRENGTH OF NEUTRAL-DRIVEN EVOLUTION
 
@@ -412,13 +447,13 @@ pars$ext_prob_neutral = 0.07 #0.0003 # neutral probability of extinction
 TESTING for neutral
 
 ```{r}
-pars$I_max <- 100  # Increase the maximum number of species allowed to interact
+#pars$I_max <- 100  # Increase the maximum number of species allowed to interact
 #pars$u_max <- 0.15  # Decrease the upper bound on speciation probability
 #pars$d <- 0.75  # Decrease the rate at which speciation probability drops with increasing S
 pars$sd <- 0.6 * pars$av_r + 0.001  # Increase the trait variability during speciation
-#pars$competition_coefficient <- 0.025  # Reduce the impact of competition
+pars$competition_coefficient <- 0.025  # Reduce the impact of competition
 
-#pars$u_max <- 0.25  # Increase the upper bound on speciation probability
+pars$u_max <- 0.25  # Increase the upper bound on speciation probability
 
 ```
 
@@ -458,7 +493,8 @@ seed_record <- c(rep(NA, nsim)) # Set the vector to record the seed that have be
   
   		seed_list <- c(seed_list, seed) # Add the seed
   		
-  		simulation <- sim_model_bif_fw(seed = seed, pars = pars, nsteps = nsteps) 
+  	#	simulation <- sim_model_bif_fw(seed = seed, pars = pars, nsteps = nsteps) 
+  		simulation <- sim_model(seed = seed, pars = pars, nsteps = nsteps) 
   		
   		total_nb_sim <- total_nb_sim +1 # Count the total amount of simulations
 
@@ -472,22 +508,23 @@ seed_record <- c(rep(NA, nsim)) # Set the vector to record the seed that have be
     		                seed = seed,
     		                parameters = pars, 
     		                presence_matrix = simulation$pres, 
-    		                traits_df = simulation$traits,
-    		                parentage_matrix = simulation$anc,
+    		               # traits_df = simulation$traits,
+    		               # parentage_matrix = simulation$anc,
     		                extinxction_matrix = simulation$extinct, 
     		                network_list = simulation$L_list, 
     		                anc_dist_table = simulation$dist_anc, 
-    		                list_anc_dist = simulation$list_dist_anc,
-    		                speciation_matrix = simulation$speciation_matrix,
-    		                extinction_matrix = simulation$extinction_matrix) # Record results from the simulation
+    		                list_anc_dist = simulation$list_dist_anc
+    		               # speciation_matrix = simulation$speciation_matrix,
+    		               # extinction_matrix = simulation$extinction_matrix
+    		                ) # Record results from the simulation
     		
     		print(paste("simulation ", successful_sim, "of", nsim))
     		successful_sim <- successful_sim + 1 # Count the amount of "good" simulations
   		
 
-    		dist_matrices <- compute_dist_matrices(results_simulation = res_sim,
-    		                      int = "foodweb",
-    		                      Smax = pars$Smax)
+    		# dist_matrices <- compute_dist_matrices(results_simulation = res_sim,
+    		#                       int = "foodweb",
+    		#                       Smax = pars$Smax)
   		
   				
   		}  		
@@ -499,12 +536,36 @@ seed_record <- c(rep(NA, nsim)) # Set the vector to record the seed that have be
 
 
 
+
+
+
 ```{r}
-list_int_dist_mean <- dist_matrices$list_int_dist_mean
-list_phylo_dist <- dist_matrices$list_phylo_dist
+#saveRDS(res_sim, here::here("output/testing/res_sim_n.rds"))
+
+res_sim <- readRDS(here::here("output/testing/res_sim.rds"))
+res_sim <- readRDS(here::here("output/testing/res_sim_n.rds"))
+
 ```
 
 
+```{r}
+sdv_matrices <- compute_dist_matrices(results_simulation = res_sim,
+    		                       int = "foodweb",
+    		                      Smax = pars$Smax,
+    		                      nbasals = pars$Sbasal)
+
+list_svd_pred <- sdv_matrices$list_svd_pred
+
+list_svd_eigen.phy <- sdv_matrices$list_svd_eigen.phy
+
+list_network <- sdv_matrices$list_net_present_spp.letters
+
+list_corrphylo <- sdv_matrices$list_phylo.corr_cropped
+```
+
+
+
+# compute phylosigh ~ S all dim
 
 ```{r}
 
@@ -516,18 +577,13 @@ cor_eucl <- vector()
 cor <- vector()
 
 # Loop through each timestep to compute Procrustes correlations
-for (i in seq_along(list_int_dist_mean)) {
-  # Compute distance matrices
-  # int_dist <- as.dist(list_int_dist_mean[[i]]) # Convert to Euclidean distance matrix
-  # phylo_dist <- as.dist(list_phylo_dist[[i]])
+for (i in seq_along(list_svd_pred)) {
   
-  # Run Procrustes test
- # proc_eucl <- protest(int_dist, phylo_dist)
-  proc <- protest(list_int_dist_mean[[i]], list_phylo_dist[[i]])
+  proc <- protest(list_svd_pred[[i]], list_svd_eigen.phy[[i]])
   
   # Store results
   timestep[i] <- i
-  S[i] <- ncol(list_int_dist_mean[[i]]) # Number of species (community size)
+  S[i] <- ncol(list_svd_pred[[i]]) # Number of species (community size)
   #cor_eucl[i] <- proc_eucl$t0
   cor[i] <- proc$t0
 }
@@ -537,25 +593,6 @@ df_results <- data.frame(timestep = timestep,
                          S = S, 
                          #cor_eucl = cor_eucl, 
                          cor = cor)
-
-# df_long <- df_results %>%
-#   pivot_longer(cols = c(cor_eucl, cor), names_to = "cor_type", values_to = "cor_value")
-
-
-# Plot correlation (cor) against community size (S)
-# plot_sel <- ggplot(df_long, aes(x = S, y = cor_value, color = cor_type)) +
-#   geom_point() + # Plot points for both types
-#   geom_smooth(method = "gam", formula = y ~ s(x)) + # Add GAM smooth lines for both
-#   labs(x = "Community Size (S)", y = "Procrustes Correlation") +
-#   theme_classic()+
-#   ylim(0,1)
-# 
-# plot_neutr <- ggplot(df_long, aes(x = S, y = cor_value, color = cor_type)) +
-#   geom_point() + # Plot points for both types
-#   geom_smooth(method = "gam", formula = y ~ s(x)) + # Add GAM smooth lines for both
-#   labs(x = "Community Size (S)", y = "Procrustes Correlation") +
-#   theme_classic()+
-#   ylim(0,1)
 
 ggplot(df_results, aes(x = S, y = cor)) +
   geom_point() + # Plot points for both types
@@ -568,7 +605,142 @@ ggplot(df_results, aes(x = S, y = cor)) +
 
 ```
 
+# compute phylosigh ~ S with 6d
 
+reduce dimensions
+
+```{r}
+I_max <- pars$I_max
+
+timestep <- vector()
+S <- vector()
+cor <- vector()
+kept_axes <- 6  # Number of axes to keep if S > 6
+
+# Loop through each timestep to compute Procrustes correlations
+for (i in seq_along(list_svd_pred)) {
+  
+  # Get the number of species (community size) at this timestep
+  current_S <- ncol(list_svd_pred[[i]])
+  
+  # Determine the number of axes to keep
+  if (current_S <= kept_axes) {
+    # Keep all axes if S is less than or equal to 6
+    svd_pred_kept <- list_svd_pred[[i]]
+    svd_phy_kept <- list_svd_eigen.phy[[i]]
+  } else {
+    # Keep only 6 axes if S is greater than 6
+    svd_pred_kept <- list_svd_pred[[i]][, 1:kept_axes]
+    svd_phy_kept <- list_svd_eigen.phy[[i]][, 1:kept_axes]
+  }
+  
+  # Run Procrustes analysis on the selected axes
+  proc <- protest(svd_pred_kept, svd_phy_kept)
+  
+  # Store results
+  timestep[i] <- i
+  S[i] <- current_S  # Number of species (community size)
+  cor[i] <- proc$t0
+}
+
+# Create a dataframe to store results
+df_results <- data.frame(timestep = timestep, 
+                         S = S, 
+                         cor = cor)
+
+# Plot the correlation along community size S
+ggplot(df_results, aes(x = S, y = cor)) +
+  geom_point() + # Plot points for the correlation
+  geom_smooth(method = "gam", formula = y ~ s(x)) + # Add GAM smooth line
+  labs(x = "Community Size (S)", y = "Procrustes Correlation") +
+  theme_classic() +
+  geom_vline(xintercept = I_max, linetype = "dashed") +
+  ylim(0,1)
+
+```
+
+
+# compute phylosigh ~ S optimized d
+
+```{r}
+# Initialize vectors to store results
+timestep <- vector()
+S <- vector()
+cor <- vector()
+d_phylo <- vector()
+d_network <- vector()
+threshold <- 0.9  # Threshold for explained variance (e.g., 90%)
+
+# Loop through each timestep to compute Procrustes correlations
+for (i in seq_along(list_svd_pred)) {
+  
+  # Extract singular values from the original SVD for the interaction matrix
+  svd_result <- svd(list_network[[i]])
+  singular_values <- svd_result$d
+  
+  # Compute cumulative explained variance for the interaction matrix
+  cum_var_pred <- cumsum(singular_values^2) / sum(singular_values^2)
+  
+  # Compute cumulative explained variance for the phylogenetic matrix
+  eigenvalues_phy <- eigen(list_corrphylo[[i]], symmetric = TRUE)$values
+  cum_var_phy <- cumsum(eigenvalues_phy) / sum(eigenvalues_phy)
+  
+  # Determine the number of axes needed to reach the threshold (90% variance)
+  num_axes_pred <- min(which(cum_var_pred >= threshold))
+  num_axes_phy <- min(which(cum_var_phy >= threshold))
+  
+  # Store the number of dimensions retained for each matrix
+  d_network[i] <- num_axes_pred
+  d_phylo[i] <- num_axes_phy
+  
+  # Decide on the number of axes to keep: the maximum of the two
+  num_axes_to_keep <- max(num_axes_pred, num_axes_phy)
+  
+  # Adjust matrices to keep only the necessary axes
+  svd_pred_kept <- list_svd_pred[[i]][, 1:num_axes_to_keep]
+  svd_phy_kept <- list_svd_eigen.phy[[i]][, 1:num_axes_to_keep]
+  
+  # Run Procrustes analysis on the selected axes
+  proc <- protest(svd_pred_kept, svd_phy_kept)
+  
+  # Store results
+  timestep[i] <- i
+  S[i] <- ncol(list_svd_pred[[i]])  # Number of species (community size)
+  cor[i] <- proc$t0
+}
+
+# Create a dataframe to store results
+df_results <- data.frame(timestep = timestep, 
+                         S = S, 
+                         cor = cor,
+                         d_phylo = d_phylo,
+                         d_network = d_network)
+
+# Plot the correlation along community size S
+ggplot(df_results, aes(x = S, y = cor)) +
+  geom_point() + # Plot points for the correlation
+  geom_smooth(method = "gam", formula = y ~ s(x)) + # Add GAM smooth line
+  labs(x = "Community Size (S)", y = "Procrustes Correlation") +
+  theme_classic() +
+  geom_vline(xintercept = I_max, linetype = "dashed") +
+  ylim(0,1)
+
+
+```
+```{r}
+# Melt the dataframe to long format for plotting
+df_long <- reshape2::melt(df_results, id.vars = "timestep", measure.vars = c("d_phylo", "d_network"),
+                          variable.name = "Dimension_Type", value.name = "Dimensions")
+
+# Plot the dimensions retained for phylogenetic and network matrices
+ggplot(df_long, aes(x = timestep, y = Dimensions, color = Dimension_Type)) +
+  geom_point() + # Plot points for dimensions
+  geom_line() +  # Connect points with lines
+  labs(x = "timestep", y = "Number of Dimensions Retained",
+       color = "Dimension Type") +
+  theme_classic() +
+  scale_color_manual(values = c("d_phylo" = "blue", "d_network" = "red")) # Customize colors
+```
 
 
 ## Inspection of individual simulation
@@ -578,7 +750,138 @@ inspect_simulation_fw(simulation_data = res_sim)
 ```
 
 
+# inspection of network structures
 
+```{r}
+plot_network_at_timestep_stratified <- function(matrix, timestep) {
+  # Create an igraph object from the adjacency matrix
+  g <- graph_from_adjacency_matrix(as.matrix(matrix), mode = "directed")
+  
+  # Identify species roles
+  in_degree <- igraph::degree(g, mode = "in")   # Number of incoming edges (eaten by others)
+  out_degree <- igraph::degree(g, mode = "out") # Number of outgoing edges (eat others)
+  
+  # Assign roles
+  V(g)$role <- ifelse(in_degree > 0 & out_degree == 0, "Herbivore", 
+                      ifelse(in_degree > 0 & out_degree > 0, "Intermediate", 
+                             "Top Predator"))
+  
+  # Define y-coordinates for stratification based on species role
+  V(g)$y <- ifelse(V(g)$role == "Herbivore", 1, 
+                   ifelse(V(g)$role == "Intermediate", 2, 3))
+  
+  # Generate a custom layout with stratified y-coordinates and evenly spaced x-coordinates
+  layout_df <- data.frame(x = 1:vcount(g), y = V(g)$y)
+  
+  # Create a ggraph plot with a custom layout
+  plot <- ggraph(g, layout = layout_df) + 
+    geom_edge_link(edge_width = 0.01, arrow = arrow(length = unit(2, 'mm')), end_cap = circle(3, 'mm')) + 
+    geom_node_point(aes(color = role), size = 3) + # Plot nodes with color based on role
+    scale_color_manual(values = c("Herbivore" = "green", "Intermediate" = "orange", "Top Predator" = "red")) +
+    labs(title = paste("Network at Timestep", timestep), color = "Species Role") +
+    theme_void() + # Use a minimal theme
+    theme(legend.position = "bottom") # Place legend at the bottom
+  
+  return(plot)
+}
+
+# Timesteps to plot
+timesteps_to_plot <- c(5, 10, 20, 30, 50, 60, 80, 90, 98)
+
+# Create plots for the specified timesteps using ggraph with stratified layout
+plot_list <- lapply(timesteps_to_plot, function(timestep) {
+  plot_network_at_timestep_stratified(list_network[[timestep]], timestep)
+})
+
+# Arrange the plots using ggarrange
+final_plot <- ggarrange(plotlist = plot_list, ncol = 3, nrow = 3)
+
+# Display the final plot
+print(final_plot)
+```
+
+
+
+# compare metrics with empirical foodweb
+
+```{r}
+net_metr_empirical <- readRDS(here::here("data/net_metrics_empirical.rds"))
+net_metr_empirical$id <- NULL
+# eliminate one problematic foodweb:
+net_metr_empirical <- net_metr_empirical[-13,]
+# reshape dataframe:
+df_metrics_emp <- reshape_df_net.metrics(df_metrics = net_metr_empirical,
+                       interaction = "empirical")
+```
+
+
+
+
+```{r}
+
+source(here::here("code/functions/functions_metrics_networks.R"))
+
+# list_adj_matrix.f <- list()
+# 
+# for (i in 1:length(list_results)) {
+#   
+#   
+#   res <- list_results[[i]]
+#   
+#   list_adj_matrix.f[[i]] <- get_adjancency_from_simulation.fw_single(list_networks = res$network_list,
+#                                            nbasals = pars$Sbasal,
+#                                            pres_mat = res$presence_matrix)
+#   
+# }
+
+list_adj_matrix.f <- list(list_network[length(list_network)],
+                        list_network[length(list_network)])
+
+net_metr_sim <- get_network_measures_from_adjacency(list_adj_matrix = list_adj_matrix.f)
+
+
+df_metrics_fw <- reshape_df_net.metrics(df_metrics = net_metr_sim,
+                       interaction = "foodweb")
+
+df_metrics <- merge(df_metrics_fw,
+                    df_metrics_emp,
+                    by = "metric")
+
+
+# plot the results
+
+p_S <- plot_metric_foodweb(df = df_metrics, metric = "S", y_axis = "N species")
+p_link.dens <- plot_metric_foodweb(df = df_metrics, metric = "Link_density", y_axis = "L/S")
+p_C <- plot_metric_foodweb(df = df_metrics, metric = "C", y_axis = "Connectance")
+p_top <- plot_metric_foodweb(df = df_metrics, metric = "perc_tops", y_axis = "% top species")
+p_int <- plot_metric_foodweb(df = df_metrics, metric = "perc_int", y_axis = "% intermediate species")
+p_basal <- plot_metric_foodweb(df = df_metrics, metric = "perc_basals", y_axis = "% basal species")
+p_cannibals <- plot_metric_foodweb(df = df_metrics, metric = "perc_cannibals", y_axis = "% cannibal species")
+p_omnivory <- plot_metric_foodweb(df = df_metrics, metric = "omnivory", y_axis = "omnivory")
+p_sd_gen <- plot_metric_foodweb(df = df_metrics, metric = "sd_gen", y_axis = "SD generality")
+p_sd_vul <- plot_metric_foodweb(df = df_metrics, metric = "sd_vul", y_axis = "SD vulnerability")
+
+plot_metrics_comparison_sim_emp <- ggarrange(
+  p_S,
+  p_link.dens,
+  p_C,
+  p_top,
+  p_int,
+  p_basal,
+  p_cannibals,
+  p_omnivory,
+  p_sd_gen,
+  p_sd_vul,
+  
+  nrow = 5,
+  ncol = 2
+  
+)
+
+plot_metrics_comparison_sim_emp
+
+#ggsave("plot_metrics_comparison_sim_emp.png", height = 12, width = 7)
+```
 
 
 
