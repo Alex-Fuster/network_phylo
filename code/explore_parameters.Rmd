@@ -1,0 +1,343 @@
+---
+title: "Understanding parameters"
+
+---
+
+
+# Probability of extinction
+
+
+ ext_prob_sel <- e_0neg + e_1neg * exp(-a_eneg * avg_similarity)
+
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(gridExtra)
+
+# Define a range of average similarity values
+avg_similarity <- seq(0, 1, length.out = 100)
+
+# Define different sets of parameters to explore their effects
+e_0neg_values <- c(0.1, 0.2, 0.3)  # Base extinction probabilities
+e_1neg_values <- c(-0.1, 0.1, 0.2)  # Modifiers for extinction probability
+a_eneg_values <- c(0.025, 0.1, 0.2)  # Decay rates for exponential term
+
+# Create data for different values of e_0neg
+results_e0neg <- data.frame()
+for (e_0neg in e_0neg_values) {
+  ext_prob_sel <- e_0neg + (-e_0neg) * exp(-0.025 * avg_similarity)
+  results_e0neg <- rbind(results_e0neg, data.frame(avg_similarity = avg_similarity, ext_prob = ext_prob_sel, parameter = paste("e_0neg =", e_0neg)))
+}
+
+# Create data for different values of e_1neg
+results_e1neg <- data.frame()
+for (e_1neg in e_1neg_values) {
+  ext_prob_sel <- 0.1 + e_1neg * exp(-0.025 * avg_similarity)
+  results_e1neg <- rbind(results_e1neg, data.frame(avg_similarity = avg_similarity, ext_prob = ext_prob_sel, parameter = paste("e_1neg =", e_1neg)))
+}
+
+# Create data for different values of a_eneg
+results_aeneg <- data.frame()
+for (a_eneg in a_eneg_values) {
+  ext_prob_sel <- 0.1 + (-0.1) * exp(-a_eneg * avg_similarity)
+  results_aeneg <- rbind(results_aeneg, data.frame(avg_similarity = avg_similarity, ext_prob = ext_prob_sel, parameter = paste("a_eneg =", a_eneg)))
+}
+
+# Create individual plots
+plot_e0neg <- ggplot(results_e0neg, aes(x = avg_similarity, y = ext_prob, color = parameter)) +
+  geom_line() +
+  labs(title = "Effect of e_0neg on Extinction Probability", x = "Average Similarity", y = "Extinction Probability") +
+  theme_minimal()
+
+plot_e1neg <- ggplot(results_e1neg, aes(x = avg_similarity, y = ext_prob, color = parameter)) +
+  geom_line() +
+  labs(title = "Effect of e_1neg on Extinction Probability", x = "Average Similarity", y = "Extinction Probability") +
+  theme_minimal()
+
+plot_aeneg <- ggplot(results_aeneg, aes(x = avg_similarity, y = ext_prob, color = parameter)) +
+  geom_line() +
+  labs(title = "Effect of a_eneg on Extinction Probability", x = "Average Similarity", y = "Extinction Probability") +
+  theme_minimal()
+
+# Arrange the plots in a single row with separate legends
+grid.arrange(plot_e0neg, plot_e1neg, plot_aeneg, ncol = 1)
+
+
+
+```
+
+**Effect of e_0neg (Base Extinction Probability):**
+
+As e_0neg increases, the baseline extinction probability shifts upward. This directly increases the extinction probability for all levels of average similarity, serving as a starting point.
+
+**Effect of e_1neg (Modifier for Extinction Probability):**
+
+When e_1neg is negative, it decreases the extinction probability as similarity increases. Conversely, a positive e_1neg adds to the extinction probability, causing it to increase more rapidly with similarity.
+
+**Effect of a_eneg (Decay Rate for Exponential Term):**
+
+A higher a_eneg value makes the extinction probability decay more rapidly as average similarity increases. Lower values of a_eneg cause a slower decay, maintaining a higher probability over a more extensive range of similarity values.
+
+```{r}
+# Adjusted parameter values
+pars$e_0neg <- 0.1    # Increase base extinction probability
+pars$e_1neg <- -e_0neg    # Set a positive value to add to the extinction probability
+pars$a_eneg <- 0.5    # Increase the rate of decay
+```
+
+
+
+# Probabilitstic niche
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+
+# Define the Gaussian probability function for interaction
+prob_interaction <- function(distance, sigma) {
+  exp(- (distance^2) / (2 * sigma^2))
+}
+
+# Create a range of distances from the optimal niche
+distances <- seq(0, 1, length.out = 100)
+
+# Define different sigma values to illustrate their effects
+sigma_values <- c(0.05, 0.1, 0.2)
+
+# Create a data frame to store the results
+results <- data.frame()
+
+# Compute the probabilities for each sigma value
+for (sigma in sigma_values) {
+  probabilities <- prob_interaction(distances, sigma)
+  results <- rbind(results, data.frame(distance = distances, probability = probabilities, sigma = paste("sigma =", sigma)))
+}
+
+# Plot the probability of interaction for each sigma value using ggplot2
+ggplot(results, aes(x = distance, y = probability, color = sigma)) +
+  geom_line(size = 1) +
+  labs(title = "Probability of Interaction Based on Distance from Optimal Niche",
+       x = "Distance from Optimal Niche",
+       y = "Interaction Probability") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  scale_color_manual(values = c("red", "blue", "green")) +
+  theme(legend.position = "right")
+
+```
+
+
+
+# average similarity and extinction probability
+
+```{r}
+# Define parameters
+e_0neg <- 0.1  # Base extinction probability
+#e_1neg <- 0.2  # Modifier for extinction probability
+e_1neg <- -e_0neg
+a_eneg <- 0.5  # Decay rate
+
+# Simulate data for average similarity from 0 to around 1.5
+avg_similarity <- seq(0, 1.5, length.out = 100)
+
+# Calculate extinction probabilities based on avg_similarity
+ext_prob_sel <- e_0neg + e_1neg * exp(-a_eneg * avg_similarity)
+
+# Plotting
+plot(avg_similarity, ext_prob_sel, type = "l", col = "blue", lwd = 2,
+     xlab = "Average Similarity", ylab = "Extinction Probability",
+     main = "Extinction Probability vs. Average Similarity")
+grid()
+
+```
+
+```{r}
+# Define parameters
+e_0neg <- 0.1  # Base extinction probability
+e_1neg <- -e_0neg  # Ensure positive relationship between similarity and extinction probability
+a_eneg <- 0.5  # Decay rate
+
+# Simulate data for average similarity from 0 to around 1.5
+avg_similarity <- seq(0, 0.5, length.out = 100)
+
+# Rescale avg_similarity to a range between 0 and 1
+avg_similarity_scaled <- (avg_similarity - min(avg_similarity)) / (max(avg_similarity) - min(avg_similarity))
+
+# Set parameters for the logistic function
+k <- 10  # Steepness of the logistic curve
+midpoint <- 0.5  # Midpoint for the logistic curve (can be adjusted based on the desired mean similarity)
+
+# Calculate extinction probabilities using a logistic function
+ext_prob_sel <- 1 / (1 + exp(-k * (avg_similarity_scaled - midpoint)))
+
+# Plotting
+plot(avg_similarity, ext_prob_sel, type = "l", col = "blue", lwd = 2,
+     xlab = "Average Similarity", ylab = "Extinction Probability",
+     main = "Extinction Probability vs. Average Similarity using Logistic Function")
+grid()
+
+```
+
+# Possible range of average similarities in different network sizes
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+
+# Function to calculate average similarity using SVD
+calculate_avg_similarity <- function(L) {
+  svd_result <- svd(L)
+  similarity_matrix <- svd_result$v %*% diag(svd_result$d) %*% t(svd_result$v)
+  diag(similarity_matrix) <- 0  # Set the diagonal to 0 to exclude self-similarity
+  avg_similarity <- rowMeans(similarity_matrix) * (ncol(similarity_matrix) / (ncol(similarity_matrix) - 1))
+  avg_similarity[avg_similarity < exp(-5)] <- 0  # Set small values to 0
+  return(mean(avg_similarity, na.rm = TRUE))
+}
+
+# Simulate networks of sizes ranging from 2 to 70 species
+network_sizes <- 2:70
+avg_similarities <- data.frame(Size = integer(), Avg_Similarity = numeric())
+
+# Simulate multiple networks for each size
+set.seed(42)  # For reproducibility
+for (size in network_sizes) {
+  for (i in 1:100) {  # Simulate 100 networks for each size
+    # Generate a random binary interaction matrix (0 or 1)
+    L <- matrix(sample(c(0, 1), size * size, replace = TRUE), nrow = size)
+    
+    # Ensure no self-interactions by setting the diagonal to 0
+    diag(L) <- 0
+    
+    # Calculate the average similarity
+    avg_similarity <- calculate_avg_similarity(L)
+    
+    # Store the result in the data frame
+    avg_similarities <- rbind(avg_similarities, data.frame(Size = size, Avg_Similarity = avg_similarity))
+  }
+}
+
+# Plotting with ggplot2
+ggplot(avg_similarities, aes(x = factor(Size), y = Avg_Similarity)) +
+  geom_boxplot(outlier.size = 0.5, fill = 'skyblue', color = 'darkblue') +
+  labs(title = "Distribution of Average Similarities by Network Size",
+       x = "Network Size (Number of Species)",
+       y = "Average Similarity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+```{r}
+
+# Load necessary library
+library(ggplot2)
+
+# Function to calculate establishment probability
+calculate_estab_prob <- function(sum_I, u_0pos, u_1pos, a_upos) {
+  estab_prob_sel <- u_0pos + u_1pos * (1 - exp(-a_upos * sum_I))
+  return(estab_prob_sel)
+}
+
+# Define a range of integer values for sum_I
+sum_I_values <- 1:10  # Integer range from 1 to 10
+
+# Parameters to test
+u_0pos <- 0.1   # Baseline probability
+u_1pos <- 0.5   # Scaling factor
+a_upos <- 0.5   # Shape of the exponential increase
+
+# Calculate establishment probabilities for different sum_I values
+estab_prob_values <- sapply(sum_I_values, calculate_estab_prob, u_0pos, u_1pos, a_upos)
+
+# Create a data frame for plotting
+plot_data <- data.frame(sum_I = sum_I_values, estab_prob = estab_prob_values)
+
+# Plot the result
+ggplot(plot_data, aes(x = sum_I, y = estab_prob)) +
+  geom_line(color = 'blue') +
+  geom_point(size = 2, color = 'red') +
+  labs(title = "Establishment Probability vs. Sum of Interactions",
+       x = "Sum of Interactions (sum_I)",
+       y = "Establishment Probability (estab_prob_sel)") +
+  theme_minimal()
+
+# Create a Shiny app to play with parameter values
+if (interactive()) {
+  library(shiny)
+  
+  ui <- fluidPage(
+    titlePanel("Test Different Parameter Values for Establishment Probability"),
+    sidebarLayout(
+      sidebarPanel(
+        sliderInput("u_0pos", "Baseline Probability (u_0pos):", min = 0, max = 1, value = 0.1, step = 0.01),
+        sliderInput("u_1pos", "Scaling Factor (u_1pos):", min = 0, max = 1, value = 0.5, step = 0.01),
+        sliderInput("a_upos", "Exponential Shape (a_upos):", min = 0, max = 2, value = 0.5, step = 0.01)
+      ),
+      mainPanel(
+        plotOutput("estabPlot")
+      )
+    )
+  )
+  
+  server <- function(input, output) {
+    output$estabPlot <- renderPlot({
+      # Recalculate establishment probabilities with the input parameters
+      estab_prob_values <- sapply(sum_I_values, calculate_estab_prob, input$u_0pos, input$u_1pos, input$a_upos)
+      
+      # Create a data frame for plotting
+      plot_data <- data.frame(sum_I = sum_I_values, estab_prob = estab_prob_values)
+      
+      # Plot the result
+      ggplot(plot_data, aes(x = sum_I, y = estab_prob)) +
+        geom_line(color = 'blue') +
+        geom_point(size = 2, color = 'red') +
+        labs(title = "Establishment Probability vs. Sum of Interactions",
+             x = "Sum of Interactions (sum_I)",
+             y = "Establishment Probability (estab_prob_sel)") +
+        theme_minimal()
+    })
+  }
+  
+  shinyApp(ui = ui, server = server)
+}
+
+
+```
+
+```{r}
+# Load necessary library
+library(ggplot2)
+
+pars$u_0pos <- 0.3   # Baseline probability
+pars$u_1pos <- 0.7  # Scaling factor
+pars$a_upos <- 1   # Shape of the exponential increase
+
+# Custom function for establishment probability
+custom_estab_prob <- function(sum_I, u_0pos = 0.3, u_1pos = 0.7, a_upos = 1) {
+  # Use an exponential function with an asymptote
+  # Ensure the probability starts at base_prob for sum_I = 1 and reaches max_prob at sum_I = 10
+  prob <- u_0pos + (u_1pos - u_0pos) * (1 - exp(-a_upos * (sum_I - 1)))
+  return(prob)
+}
+
+# Define a range of integer values for sum_I
+sum_I_values <- 1:10  # Integer range from 1 to 10
+
+# Calculate establishment probabilities using the custom function
+estab_prob_values <- sapply(sum_I_values, custom_estab_prob, u_0pos = 0.3, u_1pos = 0.7, a_upos = 0.5)
+
+# Create a data frame for plotting
+plot_data <- data.frame(sum_I = sum_I_values, estab_prob = estab_prob_values)
+
+# Plot the result
+ggplot(plot_data, aes(x = sum_I, y = estab_prob)) +
+  geom_line(color = 'blue') +
+  geom_point(size = 2, color = 'red') +
+  labs(title = "Establishment Probability vs. Sum of Interactions",
+       x = "Sum of Interactions (sum_I)",
+       y = "Establishment Probability") +
+  theme_minimal()
+
+```
+

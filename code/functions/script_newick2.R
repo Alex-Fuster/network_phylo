@@ -16,29 +16,29 @@ sister.group<-function(sis.names,sis.dist){
 
 ToPhylo<-function(data){
 	data.2<-data
-	data.2$repr<-data$sp
-	sisters<-levels(as.factor(data$sp))
-	mothers<-levels(as.factor(data$anc))
+	data.2$repr<-data$spp
+	sisters<-levels(as.factor(data$spp))
+	mothers<-levels(as.factor(data$ancestor))
 	tips<-setdiff(sisters,mothers)
 	root<-setdiff(mothers,sisters)
-	foc.nodes<-unique(data[which(data$sp%in%tips),"anc"])
+	foc.nodes<-unique(data[which(data$spp%in%tips),"ancestor"])
 	n<-length(foc.nodes)
-	data.2$repr[data.2$sp%in%tips]<-data.2$repr[data.2$sp%in%tips]
+	data.2$repr[data.2$spp%in%tips]<-data.2$repr[data.2$spp%in%tips]
 	while(n>1){
-		foc.nodes2<-unique(data.2[which(data.2$sp%in%foc.nodes),"anc"])
+		foc.nodes2<-unique(data.2[which(data.2$spp%in%foc.nodes),"ancestor"])
 		for(i in 1:n){
-			daughters<-data.2[which(data.2$anc==foc.nodes[i]),"repr"]
+			daughters<-data.2[which(data.2$ancestor==foc.nodes[i]),"repr"]
 			#print(daughters)
-			daughters.dist<-data.2[which(data.2$anc==foc.nodes[i]),"dist"]
-			data.2$repr[data.2$sp==foc.nodes[i]]<-paste0(sister.group(daughters,daughters.dist),foc.nodes[i])
+			daughters.dist<-data.2[which(data.2$ancestor==foc.nodes[i]),"distance"]
+			data.2$repr[data.2$spp==foc.nodes[i]]<-paste0(sister.group(daughters,daughters.dist),foc.nodes[i])
 		}
 		tips<-foc.nodes
 		foc.nodes<-foc.nodes2
 		n<-length(foc.nodes)
 	}
-	daughters<-data.2[which(data.2$anc==foc.nodes[1]),"repr"]
+	daughters<-data.2[which(data.2$ancestor==foc.nodes[1]),"repr"]
 			#print(daughters)
-	daughters.dist<-data.2[which(data.2$anc==foc.nodes[1]),"dist"]
+	daughters.dist<-data.2[which(data.2$ancestor==foc.nodes[1]),"distance"]
 	paste0(sister.group(daughters,daughters.dist),root)
 }
 

@@ -48,32 +48,127 @@ rand_traits_mut <- function(traits_anc, pars, direction = "random") {
 
 ########################################
 # Function to compute the interaction network from a set of traits
-get_L_mat = function(basal, pars, traits_mat) {
-  with(as.list(pars),{
-    L = matrix(0, nr = Smax+Sbasal, nc = Smax)
+# get_L_mat = function(basal, pars, traits_mat) {
+#   with(as.list(pars),{
+#     L = matrix(0, nr = Smax+Sbasal, nc = Smax)
+#     
+#     # Lower boundary
+#     low = traits_mat$o - traits_mat$r
+#     low_mat = matrix(low, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)
+#     
+#     # Upper boundary
+#     high = traits_mat$o + traits_mat$r
+#     high_mat = matrix(high, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)	
+#     S = nrow(traits_mat)
+#     
+#     # Matrix of niche positions
+#     n_mat = matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
+#     
+#     # Add the basal species
+#     n_basal = matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
+#     n_mat = rbind(n_basal, n_mat)
+#     
+#     # Test interactions
+#     L[n_mat > low_mat & n_mat < high_mat] = 1
+#     if(Smax > 1) diag(L[(Sbasal+1):(Sbasal+Smax),]) = 0
+#     L
+#   })
+# }
+
+########################################
+# get_L_mat <- function(basal, pars, traits_mat) {
+#   with(as.list(pars), {
+#     # Initialize the interaction matrix
+#     L <- matrix(0, nr = Smax + Sbasal, nc = Smax)
+#     
+#     # Lower and upper boundaries for niches
+#     low <- traits_mat$o - traits_mat$r
+#     low_mat <- matrix(low, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)
+#     high <- traits_mat$o + traits_mat$r
+#     high_mat <- matrix(high, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)  
+#     S <- nrow(traits_mat)
+#     
+#     # Matrix of niche positions
+#     n_mat <- matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
+#     
+#     # Add the basal species
+#     n_basal <- matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
+#     n_mat <- rbind(n_basal, n_mat)
+#     
+#     # Define the probability function (e.g., Gaussian probability)
+#     prob_interaction <- function(distance, sigma = 0.1) {
+#       exp(- (distance^2) / (2 * sigma^2))
+#     }
+#     
+#     # Calculate distances and interaction probabilities
+#     for (i in 1:(Smax + Sbasal)) {
+#       for (j in 1:Smax) {
+#         if (n_mat[i, j] > low_mat[i, j] && n_mat[i, j] < high_mat[i, j]) {
+#           # Compute the distance from the optimal niche
+#           distance <- abs(n_mat[i, j] - traits_mat$o[j])
+#           # Compute probability of interaction
+#           interaction_prob <- prob_interaction(distance)
+#           # Assign interaction based on probability
+#           L[i, j] <- rbinom(1, 1, interaction_prob)  # Binomial draw: 1 interaction with probability 'interaction_prob'
+#         }
+#       }
+#     }
+#     
+#     # Set diagonal to 0 (no self-interaction)
+#     if (Smax > 1) diag(L[(Sbasal + 1):(Sbasal + Smax), ]) <- 0
+#     L
+#   })
+# }
+
+
+get_L_mat <- function(basal, pars, traits_mat) {
+  with(as.list(pars), {
+    # Initialize the interaction matrix
+    L <- matrix(0, nr = Smax + Sbasal, nc = Smax)
     
-    # Lower boundary
-    low = traits_mat$o - traits_mat$r
-    low_mat = matrix(low, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)
-    
-    # Upper boundary
-    high = traits_mat$o + traits_mat$r
-    high_mat = matrix(high, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)	
-    S = nrow(traits_mat)
+    # Lower and upper boundaries for niches
+    low <- traits_mat$o - traits_mat$r
+    low_mat <- matrix(low, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)
+    high <- traits_mat$o + traits_mat$r
+    high_mat <- matrix(high, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)  
+    S <- nrow(traits_mat)
     
     # Matrix of niche positions
-    n_mat = matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
+    n_mat <- matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
     
     # Add the basal species
-    n_basal = matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
-    n_mat = rbind(n_basal, n_mat)
+    n_basal <- matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
+    n_mat <- rbind(n_basal, n_mat)
     
-    # Test interactions
-    L[n_mat > low_mat & n_mat < high_mat] = 1
-    if(Smax > 1) diag(L[(Sbasal+1):(Sbasal+Smax),]) = 0
+    # Define the probability function (e.g., Gaussian probability)
+    prob_interaction <- function(distance, sigma = 0.1) {
+      exp(- (distance^2) / (2 * sigma^2))
+    }
+    
+    # Calculate distances and interaction probabilities
+    for (i in 1:(Smax + Sbasal)) {
+      for (j in 1:Smax) {
+        # Check for NA values before comparing
+        if (!is.na(n_mat[i, j]) && !is.na(low_mat[i, j]) && !is.na(high_mat[i, j])) {
+          if (n_mat[i, j] > low_mat[i, j] && n_mat[i, j] < high_mat[i, j]) {
+            # Compute the distance from the optimal niche
+            distance <- abs(n_mat[i, j] - traits_mat$o[j])
+            # Compute probability of interaction
+            interaction_prob <- prob_interaction(distance)
+            # Assign interaction based on probability
+            L[i, j] <- rbinom(1, 1, interaction_prob)  # Binomial draw: 1 interaction with probability 'interaction_prob'
+          }
+        }
+      }
+    }
+    
+    # Set diagonal to 0 (no self-interaction)
+    if (Smax > 1) diag(L[(Sbasal + 1):(Sbasal + Smax), ]) <- 0
     L
   })
 }
+
+
 
 ########################################
 # Function to compute the interactions of a given species
@@ -139,6 +234,7 @@ sim_model = function(seed, pars, nsteps) {
     
     # Record the matrices 
     L_list = list()
+    L_cropped_list = list()
     
     
     # Species count
@@ -290,125 +386,103 @@ sim_model = function(seed, pars, nsteps) {
       
       
       
-      # Test for extinction
-      
-      # if(int == 0) {
-      #   in_I = colSums(L)
-      #   ext_prob_sel = e_0neg + e_1neg * (1 - exp(-a_eneg * in_I)) 
-      #   ext_prob = SN * (ext_prob_neutral) + (1 - SN) * (ext_prob_sel)
-      # }
-      # 
-      # if(int == 1) {
-      #   in_I = colSums(L)
-      #   ext_prob_sel = e_0pos + e_1pos * exp(-a_epos * in_I) 
-      #   ext_prob = SN * (ext_prob_neutral) + (1 - SN) * (ext_prob_sel)
-      # }
-      # 
-      # if(int == 2) {
-      #   in_I = colSums(L)
-      #   out_I = rowSums(L)[(Sbasal + 1):(Sbasal + Smax)]
-      #   ext_prob_sel = e_0neg + e_1neg * exp(-a_eneg * out_I) + 
-      #     e_0pos + e_1pos * exp(-a_epos * in_I)
-      #   
-      #   
-      #   # Compute competition index using matrix operations
-      #   shared_victims = L[(Sbasal + 1):(Sbasal + Smax), ] %*% t(L[(Sbasal + 1):(Sbasal + Smax), ])
-      #   diag(shared_victims) = 0  # Remove self-competition by setting diagonal to 0
-      #   
-      #   # Compute the number of victims for each species
-      #   num_victims = rowSums(L[(Sbasal + 1):(Sbasal + Smax), ])
-      #   
-      #   # Avoid division by zero
-      #   num_victims[num_victims == 0] = 1
-      #   
-      #   # Compute the proportion of shared victims
-      #   prop_shared_victims = shared_victims / num_victims
-      #   
-      #   # Compute the competition index as the row sums of the proportion of shared victims
-      #   competition_index = rowSums(prop_shared_victims)
-      #   
-      #   # Adjust extinction probability with competition
-      #   competition_factor = 1 + competition_coefficient * competition_index
-      #   ext_prob_sel = ext_prob_sel * competition_factor
-      #   
-      #   ext_prob = SN * (ext_prob_neutral) + (1 - SN) * (ext_prob_sel)
-      # }
       
       # Identify present species using the presence matrix
       present_species <- which(pres[step, ] == 1)  # Indices of species that are present
       
-      if(length(present_species) > 0){
-      
-      # Crop the interaction matrix L to only include present species
-      L_cropped <- L[present_species, present_species]
-      
-     #  # Perform SVD on the cropped matrix
-     #  svd_result <- svd(L_cropped)
-     #  
-     #  # Extract the right singular vectors (V matrix) for the present species
-     #  V <- svd_result$v
-     #  
-     #  # Compute cosine similarity matrix for present species
-     #  similarity_matrix <- V %*% t(V)
-     #  
-     #  # Calculate average similarity for each species
-     #  avg_similarity <- rowMeans(similarity_matrix)
-     #  
-     #  # Calculate extinction probabilities based on avg_similarity
-     #  ext_prob_sel <- e_0neg + e_1neg * exp(-a_eneg * avg_similarity)
-     #  
-     #  # Apply the logistic transformation to map probabilities between 0 and 1
-     # # ext_prob_sel <- 1 / (1 + exp(-ext_prob_sel))
-     #  
-     #  print(ext_prob_sel)
-     #  
-     #  # Initialize extinction probabilities vector for all species
-     #  ext_prob_sel_full <- numeric(Smax)
-     #  
-     #  # Assign calculated probabilities to the correct positions for present species
-     #  ext_prob_sel_full[present_species] <- ext_prob_sel
-     #  
-     #  ext_prob = SN * (ext_prob_neutral) + (1 - SN) * (ext_prob_sel_full)
-      
-      # Calculate shared resources (victims) for each species
-      # Compute the matrix of shared victims
-      shared_victims <- t(L_cropped) %*% L_cropped
-      diag(shared_victims) <- 0  # Remove self-competition by setting diagonal to 0
-      
-      # Compute the competition index directly as the number of shared victims
-      competition_index <- rowSums(shared_victims)
-      
-      # Adjust extinction probability with competition
-      competition_factor <- 1 + competition_coefficient * competition_index
-      ext_prob_sel <- e_0neg + e_1neg * exp(-a_eneg * competition_factor) 
-      
-      print(ext_prob_sel)
-      
-      # Apply the logistic transformation to map probabilities between 0 and 1
-      ext_prob_sel <- 1 / (1 + exp(-ext_prob_sel))
-      
-      # Initialize extinction probabilities vector for all species
-      ext_prob_sel_full <- numeric(Smax)
-      
-      # Assign calculated probabilities to the correct positions for present species
-      ext_prob_sel_full[present_species] <- ext_prob_sel
-      
-      # Combine neutral and selection-based probabilities
-      ext_prob <- SN * (ext_prob_neutral) + (1 - SN) * (ext_prob_sel_full)
-      
-      
-      # Perform extinctions
-      
-      
-      present_spe <- grep(1,pres[step,])
-      test_extprob <- rep(0,Smax)
-      random_number <- runif(length(present_spe),0,1)
-      test_extprob[present_spe] <- random_number
-      
-      
-      
-      pres[step, pres[step-1,] & test_extprob < ext_prob] = 0
-      
+      if(length(present_species) > 1){
+        
+        # Crop the interaction matrix L to only include present species
+       # L_cropped <- L[present_species, present_species]
+        L_cropped <- L[c(1:Sbasal, Sbasal + present_species), present_species]
+        
+        L_cropped_list[[step]] <- L_cropped
+        
+        #  # Perform SVD on the cropped matrix
+          svd_result <- svd(L_cropped)
+          
+         # svd_result$u %*% diag(svd_result$d) %*% t(V)
+          
+        #  # Compute the similarity matrix from the right singular vectors
+          similarity_matrix <- svd_result$v %*% diag(svd_result$d) %*% t(svd_result$v)
+        #  
+        # set the diagonal to 0
+          diag(similarity_matrix) <- 0
+        #  # Calculate average similarity for each species
+          avg_similarity <- rowMeans(similarity_matrix)*(ncol(similarity_matrix)/(ncol(similarity_matrix)-1))
+          
+          # Identify species with no interactions (rows with all zeros)
+          no_interaction_species <- rowSums(L_cropped) == 0
+          
+          # Set average similarity values smaller than e^-5 to 0
+          avg_similarity[avg_similarity < exp(-5)] <- 0
+          
+        #  
+        # Calculate extinction probabilities based on avg_similarity
+         # ext_prob_sel <- e_0neg + e_1neg * exp(-a_eneg * avg_similarity)
+          
+          
+          ############## compute extinction probability
+           in_I = colSums(L_cropped)
+           out_I = rowSums(L_cropped)
+           ext_prob_sel = e_0neg + e_1neg * exp(-a_eneg * out_I) + 
+             e_0pos + e_1pos * exp(-a_epos * in_I)
+           
+         #  print(paste("ext_prob_sel formula", ext_prob_sel))
+           
+           # Adjust extinction probability with competition
+           competition_factor = 1 + competition_coefficient * avg_similarity
+           
+         #  print(paste("competition_factor", competition_factor))
+           
+           ext_prob_sel = ext_prob_sel * competition_factor
+        #   print(paste("in_I", in_I))
+        #   print(paste("out_I", out_I))
+           
+        #  print(paste("ext_prob_sel", ext_prob_sel))
+        #  
+         #  print(L_cropped)
+         # print(avg_similarity)
+         #  print(ext_prob_sel)
+        #  
+          # Initialize extinction probabilities vector for all species
+          ext_prob_sel_full <- numeric(Smax)
+        #  
+          # Assign calculated probabilities to the correct positions for present species
+          ext_prob_sel_full[present_species] <- ext_prob_sel
+          
+          # Identify herbivores and predators
+          # Herbivores: Species consuming only basal species
+          herbivores <- rowSums(L[(Sbasal + 1):(Sbasal + Smax), 1:Sbasal]) > 0 & 
+            rowSums(L[(Sbasal + 1):(Sbasal + Smax), (Sbasal + 1):Smax]) == 0
+          
+          # Predators: Species consuming other non-basal species
+          predators <- rowSums(L[(Sbasal + 1):(Sbasal + Smax), (Sbasal + 1):Smax]) > 0
+          
+          # Apply the extinction rule for predators with no prey
+          predators_with_no_prey <- predators & (rowSums(L[(Sbasal + 1):(Sbasal + Smax), (Sbasal + 1):Smax]) == 0)
+          
+          # Set extinction probability to 1 for predators with no prey
+          ext_prob_sel_full[predators_with_no_prey] <- 1
+          
+        # Neutral + selection
+          
+          ext_prob = SN * (ext_prob_neutral) + (1 - SN) * (ext_prob_sel_full)
+        
+
+        
+        # Perform extinctions
+        
+        
+        present_spe <- grep(1,pres[step,])
+        test_extprob <- rep(0,Smax)
+        random_number <- runif(length(present_spe),0,1)
+        test_extprob[present_spe] <- random_number
+        
+        
+        
+        pres[step, pres[step-1,] & test_extprob < ext_prob] = 0
+        
       }
       
       for(i in 1:Smax) {
@@ -451,6 +525,7 @@ sim_model = function(seed, pars, nsteps) {
          traits = traits_mat, 
          anc = anc, 
          L_list = L_list, 
+         L_cropped_list = L_cropped_list,
          basal = basal,
          dist_anc = dist_anc,
          list_dist_anc = list_dist_anc)
@@ -458,3 +533,60 @@ sim_model = function(seed, pars, nsteps) {
   })
 }
 
+
+
+
+
+# competition_coefficient = 0.025
+# Sbasal = 25 # number of basal species
+# Smax = 1000 # Maximal number of species allowed
+# #Bspe = 4 # Basal species impact on the speciation probality
+# #Bext = 4 # Basal species impact on extinction probability
+# av_r = 0.185 # 0.2 range of the niche
+# sd = 0.5*av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
+# #sd = 0.5*av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
+# 
+# # PROBABILITY OF MUTATION
+# 
+# u_max = 0.23#0.15 #0.15 # mutation probability (0.075, )
+# d = 0.5 # Decrease speed of the establishment probability
+# I_max = 60 # Maximal number of interactioning species
+# beta_n =  1 # parameter of the beta distribution 
+# 
+# # STRENGTH OF NEUTRAL-DRIVEN EVOLUTION
+# 
+# SN = 0 # strength for neutral-driven evolution
+# 
+# # PROBABILITY OF ESTABLISHMENT
+# 
+# # strength of selection-driven selection is 1 - SN
+# estab_prob_neutral = rep(0, Smax) # neutral probability of establishment
+# 
+# # Facilitation & Foodweb
+# 
+# u_0pos = 1  
+# u_1pos = -1 
+# a_upos = 0.45 
+# 
+# # PROBABILITY OF EXTINCTION
+# 
+# ext_prob_neutral = 0 # neutral probability of extinction
+# 
+# # Competition
+# 
+# e_0neg = 0.1 #0.15 # Asymptotic extinction probability with infinite negative interactions
+# a_eneg = 0.025 # Shape of the exponential decay of the negative extinction - interaction relationship
+# e_1neg = -e_0neg  # Extinction probability with absence of interactions
+# 
+# # Facilitation & Foodweb
+# 
+# e_0pos = 0.075 
+# e_1pos = 5.19 
+# a_epos = 1.2 
+# 
+# 
+# #########################################
+# 
+# # Logistic function parameters
+# k <- 10  # Steepness of the logistic curve
+# midpoint <- 0.5  # Midpoint for the logistic curve

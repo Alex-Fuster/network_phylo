@@ -86,7 +86,7 @@ get_L_vec = function(basal, pars, traits_mat, traits_mut) {
 
 
 
-sim_model_bif_fw = function(seed, pars, nsteps) {
+sim_model = function(seed, pars, nsteps) {
   
   with(pars, {
     

@@ -403,29 +403,29 @@ for (i in unique(names(metaweb_pariles))) {
   # Transpose the right matrix V to match the desired output
   V_kept_transposed <- t(V_kept)  # Transpose to get (kept axes x n_predators)
   
-  
-  
-  # Extract singular values from the original SVD for the interaction matrix
-  svd_result <- svd(matrix_int)
-  singular_values <- svd_result$d
-  
-  # Compute cumulative explained variance for the interaction matrix
-  cum_var_pred <- cumsum(singular_values^2) / sum(singular_values^2)
-  
-  # Compute cumulative explained variance for the phylogenetic matrix
-  eigenvalues_phy <- eigen(phylo.corr, symmetric = TRUE)$values
-  cum_var_phy <- cumsum(eigenvalues_phy) / sum(eigenvalues_phy)
-  
-  # Determine the number of axes needed to reach the threshold (90% variance)
-  num_axes_pred <- min(which(cum_var_pred >= threshold))
-  num_axes_phy <- min(which(cum_var_phy >= threshold))
-  
-  # Decide on the number of axes to keep: the maximum of the two
-  num_axes_to_keep <- max(num_axes_pred, num_axes_phy)
-  
-  # Adjust matrices to keep only the necessary axes
-  svd_pred_kept <- V_kept_transposed[, 1:num_axes_to_keep]
-  svd_phy_kept <- svd_eigen.phy[, 1:num_axes_to_keep]
+  svd_pred_kept <- V_kept_transposed
+  svd_phy_kept <- svd_eigen.phy
+  # # Extract singular values from the original SVD for the interaction matrix
+  # svd_result <- svd(matrix_int)
+  # singular_values <- svd_result$d
+  # 
+  # # Compute cumulative explained variance for the interaction matrix
+  # cum_var_pred <- cumsum(singular_values^2) / sum(singular_values^2)
+  # 
+  # # Compute cumulative explained variance for the phylogenetic matrix
+  # eigenvalues_phy <- eigen(phylo.corr, symmetric = TRUE)$values
+  # cum_var_phy <- cumsum(eigenvalues_phy) / sum(eigenvalues_phy)
+  # 
+  # # Determine the number of axes needed to reach the threshold (90% variance)
+  # num_axes_pred <- min(which(cum_var_pred >= threshold))
+  # num_axes_phy <- min(which(cum_var_phy >= threshold))
+  # 
+  # # Decide on the number of axes to keep: the maximum of the two
+  # num_axes_to_keep <- max(num_axes_pred, num_axes_phy)
+  # 
+  # # Adjust matrices to keep only the necessary axes
+  # svd_pred_kept <- V_kept_transposed[, 1:num_axes_to_keep]
+  # svd_phy_kept <- svd_eigen.phy[, 1:num_axes_to_keep]
   
   # Run Procrustes analysis on the selected axes
   proc <- protest(svd_pred_kept, svd_phy_kept)
