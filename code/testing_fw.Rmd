@@ -15,6 +15,7 @@ library(vegan)
 library(ade4)
 library(ape)
 library(tidyr)
+library(ggraph)
 
 source(here::here("code/functions/functions_simulation.R")) 
 source(here::here("code/functions/function_compute_df_phylosignal.R"))
@@ -390,7 +391,7 @@ pars$SN = 0 # strength for neutral-driven evolution
 # PROBABILITY OF ESTABLISHMENT
 
 # strength of selection-driven selection is 1 - SN
-pars$estab_prob_neutral = rep(0, pars$Smax) # neutral probability of establishment
+pars$estab_prob_neutral = 0.5 # neutral probability of establishment
 
 # Facilitation & Foodweb
 
@@ -400,7 +401,7 @@ pars$a_upos = 0.45
 
 # PROBABILITY OF EXTINCTION
 
-pars$ext_prob_neutral = 0 # neutral probability of extinction
+pars$ext_prob_neutral = rep(0.0005, pars$Smax) # neutral probability of extinction
 
 # Competition
 
@@ -469,18 +470,26 @@ pars$u_max <- 0.25  # Increase the upper bound on speciation probability
 ```
 
 --------------------------
+beta_ext * 0.097 + (1 - beta_ext) * avg_similarity
 
-
-# New pars based on testing
+# New pars based on testing (13 sept)
 
 ```{r}
-pars$u_0pos <- 0.3   # Baseline probability
+pars$u_0pos <- 0.4   # Baseline probability
 pars$u_1pos <- 0.7  # Scaling factor
-pars$a_upos <- 1   # Shape of the exponential increase
+pars$a_upos <- 0.2   # Shape of the exponential increase
+
+pars$e_0neg <- 0   # Baseline probability
+pars$e_1neg <- 0.01 #0.5 # Scaling factor for out-degree
+pars$a_eneg <- 0.1 #0.2  Shape of the exponential increase
+
+pars$beta_ext <- 0.5 # Control strength between out-degree and similarity
+
+pars$competition_coefficient <- 0.05
 
 ```
 
-
+New pars based on testing (13 sept) -> as soon as 2 species, one gets extinct. It stays in 1 spp.
 
 
 ### Simulation
@@ -811,15 +820,19 @@ plot_network_at_timestep_stratified <- function(matrix, timestep) {
 }
 
 # Timesteps to plot
-timesteps_to_plot <- c(5, 10, 20, 30, 40)
+timesteps_to_plot <- c(1, 5, 10, 20, 30, 40)
+
+ list_network_cropped <- lapply(network_list, function(mat) {
+   mat[-c(1:25), ]  # Remove the first 25 rows
+ })
 
 # Create plots for the specified timesteps using ggraph with stratified layout
 plot_list <- lapply(timesteps_to_plot, function(timestep) {
-  plot_network_at_timestep_stratified(list_network[[timestep]], timestep)
+  plot_network_at_timestep_stratified(list_network_cropped[[timestep]], timestep)
 })
 
 # Arrange the plots using ggarrange
-final_plot <- ggarrange(plotlist = plot_list, ncol = 3, nrow = 3)
+final_plot <- ggarrange(plotlist = plot_list, ncol = 3, nrow = 2, common.legend = TRUE)
 
 # Display the final plot
 final_plot

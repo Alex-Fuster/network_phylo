@@ -33,7 +33,8 @@ rand_traits_mut <- function(traits_anc, pars, direction = "random") {
     } else if (direction == "lesser") {
       # Generate mutant trait less than ancestor trait
       n_m <- rbeta(1, shape1 = a, shape2 = beta_n)
-      n_m <- n - abs(n_m - n)  # Ensure n_m is on the lower side of n
+      # Ensure n_m is on the lower side of n and within a reasonable range
+      n_m <- n - abs(n_m - n) * 0.8  # Adjust this factor (0.5) to control how much lesser
       n_m <- max(n_m, 0)  # Make sure n_m is not below 0
     }
     
@@ -49,80 +50,80 @@ rand_traits_mut <- function(traits_anc, pars, direction = "random") {
 
 ########################################
 # Function to compute the interaction network from a set of traits
-# get_L_mat = function(basal, pars, traits_mat) {
-#   with(as.list(pars),{
-#     L = matrix(0, nr = Smax+Sbasal, nc = Smax)
+ get_L_mat = function(basal, pars, traits_mat) {
+   with(as.list(pars),{
+     L = matrix(0, nr = Smax+Sbasal, nc = Smax)
+     
+     # Lower boundary
+     low = traits_mat$o - traits_mat$r
+     low_mat = matrix(low, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)
+     
+     # Upper boundary
+     high = traits_mat$o + traits_mat$r
+     high_mat = matrix(high, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)	
+     S = nrow(traits_mat)
+     
+     # Matrix of niche positions
+     n_mat = matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
+     
+     # Add the basal species
+     n_basal = matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
+     n_mat = rbind(n_basal, n_mat)
+     
+     # Test interactions
+     L[n_mat > low_mat & n_mat < high_mat] = 1
+     if(Smax > 1) diag(L[(Sbasal+1):(Sbasal+Smax),]) = 0
+     L
+   })
+ }
+
+
+# get_L_mat <- function(basal, pars, traits_mat) {
+#   with(as.list(pars), {
+#     # Initialize the interaction matrix
+#     L <- matrix(0, nr = Smax + Sbasal, nc = Smax)
 #     
-#     # Lower boundary
-#     low = traits_mat$o - traits_mat$r
-#     low_mat = matrix(low, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)
-#     
-#     # Upper boundary
-#     high = traits_mat$o + traits_mat$r
-#     high_mat = matrix(high, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)	
-#     S = nrow(traits_mat)
+#     # Lower and upper boundaries for niches
+#     low <- traits_mat$o - traits_mat$r
+#     low_mat <- matrix(low, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)
+#     high <- traits_mat$o + traits_mat$r
+#     high_mat <- matrix(high, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)  
+#     S <- nrow(traits_mat)
 #     
 #     # Matrix of niche positions
-#     n_mat = matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
+#     n_mat <- matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
 #     
 #     # Add the basal species
-#     n_basal = matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
-#     n_mat = rbind(n_basal, n_mat)
+#     n_basal <- matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
+#     n_mat <- rbind(n_basal, n_mat)
 #     
-#     # Test interactions
-#     L[n_mat > low_mat & n_mat < high_mat] = 1
-#     if(Smax > 1) diag(L[(Sbasal+1):(Sbasal+Smax),]) = 0
+#     # Define the probability function (e.g., Gaussian probability)
+#     prob_interaction <- function(distance, sigma = 0.1) {
+#       exp(- (distance^2) / (2 * sigma^2))
+#     }
+#     
+#     # Calculate distances and interaction probabilities
+#     for (i in 1:(Smax + Sbasal)) {
+#       for (j in 1:Smax) {
+#         # Check for NA values before comparing
+#         if (!is.na(n_mat[i, j]) && !is.na(low_mat[i, j]) && !is.na(high_mat[i, j])) {
+#           if (n_mat[i, j] > low_mat[i, j] && n_mat[i, j] < high_mat[i, j]) {
+#             # Compute the distance from the optimal niche
+#             distance <- abs(n_mat[i, j] - traits_mat$o[j])
+#             # Compute probability of interaction
+#             interaction_prob <- prob_interaction(distance)
+#             # Assign interaction based on probability
+#             L[i, j] <- rbinom(1, 1, interaction_prob)  # Binomial draw: 1 interaction with probability 'interaction_prob'
+#           }
+#         }
+#       }
+#     }
+#     
+#     # Set diagonal to 0 (no self-interaction)
+#     if (Smax > 1) diag(L[(Sbasal + 1):(Sbasal + Smax), ]) <- 0
 #     L
 #   })
 # }
-
-
-get_L_mat <- function(basal, pars, traits_mat) {
-  with(as.list(pars), {
-    # Initialize the interaction matrix
-    L <- matrix(0, nr = Smax + Sbasal, nc = Smax)
-    
-    # Lower and upper boundaries for niches
-    low <- traits_mat$o - traits_mat$r
-    low_mat <- matrix(low, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)
-    high <- traits_mat$o + traits_mat$r
-    high_mat <- matrix(high, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)  
-    S <- nrow(traits_mat)
-    
-    # Matrix of niche positions
-    n_mat <- matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
-    
-    # Add the basal species
-    n_basal <- matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
-    n_mat <- rbind(n_basal, n_mat)
-    
-    # Define the probability function (e.g., Gaussian probability)
-    prob_interaction <- function(distance, sigma = 0.1) {
-      exp(- (distance^2) / (2 * sigma^2))
-    }
-    
-    # Calculate distances and interaction probabilities
-    for (i in 1:(Smax + Sbasal)) {
-      for (j in 1:Smax) {
-        # Check for NA values before comparing
-        if (!is.na(n_mat[i, j]) && !is.na(low_mat[i, j]) && !is.na(high_mat[i, j])) {
-          if (n_mat[i, j] > low_mat[i, j] && n_mat[i, j] < high_mat[i, j]) {
-            # Compute the distance from the optimal niche
-            distance <- abs(n_mat[i, j] - traits_mat$o[j])
-            # Compute probability of interaction
-            interaction_prob <- prob_interaction(distance)
-            # Assign interaction based on probability
-            L[i, j] <- rbinom(1, 1, interaction_prob)  # Binomial draw: 1 interaction with probability 'interaction_prob'
-          }
-        }
-      }
-    }
-    
-    # Set diagonal to 0 (no self-interaction)
-    if (Smax > 1) diag(L[(Sbasal + 1):(Sbasal + Smax), ]) <- 0
-    L
-  })
-}
 
 
 ########################################
@@ -187,6 +188,7 @@ sim_model = function(seed, pars, nsteps) {
     
     # Record the matrices 
     L_list = list()
+    L_cropped_list <- list()
     
     # Initialize dataframe to store guild information at each timestep
     df_guild <- data.frame(step = integer(), npredators = integer(), nherbivors = integer(), nomnivors = integer())
@@ -255,18 +257,10 @@ sim_model = function(seed, pars, nsteps) {
               estab_prob = 0
               
             }else{
-              
-              # Compute the probability of establishment	
-              if(int == 0) {
-                estab_prob_sel = u_0neg + u_1neg * exp(-a_uneg * sum_I)
-                estab_prob = SN * (estab_prob_neutral[i]) + (1 - SN) * (estab_prob_sel)
-              }
-              
-              if(int == 1 | int == 2) {
-                estab_prob_sel = u_0pos + (u_1pos - u_0pos) * (1 - exp(-a_upos * (sum_I - 1)))
-                estab_prob = SN * (estab_prob_neutral[i]) + (1 - SN) * (estab_prob_sel)
-              }
-              
+              # Compute the probability of establishment
+                #estab_prob_sel = u_0pos + (u_1pos - u_0pos) * (1 - exp(-a_upos * (sum_I - 1)))
+                estab_prob_sel = u_0pos + u_1pos * exp(-a_upos * sum_I)
+                estab_prob = SN * estab_prob_neutral + (1 - SN) * (estab_prob_sel)
             }
             
            
@@ -287,7 +281,15 @@ sim_model = function(seed, pars, nsteps) {
               
               if(S >= Smax) break
               
-              pres[step,i] = 0 #the ancestor disapear because of trait deplacement
+              # Calculate the absolute difference between ancestor and mutant niche trait values
+              displacement_condition <- abs(traits_anc["n"] - traits_mut1["n"]) <= 0.05
+              
+              # Apply the extinction rule for the ancestor based on the condition
+              if (displacement_condition) {
+                pres[step, i] = 0  # The ancestor goes extinct
+              }
+              
+             # pres[step,i] = 0 #the ancestor disapear because of trait deplacement
               
             }
             
@@ -307,22 +309,12 @@ sim_model = function(seed, pars, nsteps) {
             sum_I = sum(I * c(rep(1, Sbasal), pres[step, ]))	
             
             if(sum_I == 0){
-              
               estab_prob = 0
               
             }else{
-            
-            # Compute the probability of establishment	
-            if(int == 0) {
-              estab_prob_sel = u_0neg + u_1neg * exp(-a_uneg * sum_I)
-              estab_prob = SN * (estab_prob_neutral[i]) + (1 - SN) * (estab_prob_sel)
-            }
-            
-            if(int == 1 | int == 2) {
-              estab_prob_sel = u_0pos + (u_1pos - u_0pos) * (1 - exp(-a_upos * (sum_I - 1)))
-              estab_prob = SN * (estab_prob_neutral[i]) + (1 - SN) * (estab_prob_sel)
-            }
-              
+              #estab_prob_sel = u_0pos + (u_1pos - u_0pos) * (1 - exp(-a_upos * (sum_I - 1)))
+              estab_prob_sel = u_0pos + u_1pos * exp(-a_upos * sum_I)
+              estab_prob = SN * estab_prob_neutral + (1 - SN) * (estab_prob_sel)
             }
             
             # Test if there is speciation
@@ -340,7 +332,15 @@ sim_model = function(seed, pars, nsteps) {
               
               if(S >= Smax) break
               
-              pres[step,i] = 0 #the ancestor disapear because of trait deplacement
+              # Calculate the absolute difference between ancestor and mutant niche trait values
+              displacement_condition <- abs(traits_anc["n"] - traits_mut1["n"]) <= 0.05
+              
+              # Apply the extinction rule for the ancestor based on the condition
+              if (displacement_condition) {
+                pres[step, i] = 0  # The ancestor goes extinct
+              }
+              
+            #  pres[step,i] = 0 #the ancestor disapear because of trait deplacement
               
             }
             
@@ -364,12 +364,15 @@ sim_model = function(seed, pars, nsteps) {
       # Identify present non-basal species using the presence matrix
       present_non_basal <- which(pres[step, ] == 1)  # Indices of present non-basal species
       
+      
       if (length(present_non_basal) > 1) {
         
         # Crop the interaction matrix L to include all basal species in rows
         # and only columns corresponding to the present non-basal species
         
         L_cropped <- L[c(1:Sbasal, Sbasal + present_non_basal), present_non_basal]
+        
+        L_cropped_list[[step]] <- L_cropped
         
         # Perform SVD on the cropped matrix
         svd_result <- svd(L_cropped)
@@ -383,30 +386,46 @@ sim_model = function(seed, pars, nsteps) {
         # Calculate average similarity for each species
         avg_similarity <- rowMeans(similarity_matrix) * (ncol(similarity_matrix) / (ncol(similarity_matrix) - 1))
         
-        # Identify species with no interactions (rows with all zeros after basal species)
-       # no_interaction_species <- rowSums(L_cropped[-c(1:Sbasal), ]) == 0
-        
+       
         # Set average similarity values smaller than e^-5 to 0
         avg_similarity[avg_similarity < exp(-5)] <- 0
         
         
         # outgoing (out_I) interaction sums
-        out_I_cropped <- rowSums(L_cropped)[(Sbasal + 1):nrow(L_cropped)]
-        #out_I <- rowSums(L_cropped)[present_non_basal]
-        
-        out_I <- rep(0, Smax)  # Smax is the total number of species
-        
-        # Assign the computed out-degree values to the positions of present non-basal species
-        out_I[present_non_basal] <- out_I_cropped
+out_I_cropped <- rowSums(L_cropped)[(Sbasal + 1):nrow(L_cropped)]
+       
         
         # Adjusted extinction probability formula - Top-down control
-        ext_prob_topdown <- e_0neg + e_1neg * exp(-a_eneg * out_I)
+ext_prob_topdown <- e_0neg + e_1neg * (1 - exp(-a_eneg * out_I_cropped))
         
-        # Adjust extinction probability with competition
         
-        competition_factor <- 1 + competition_coefficient * avg_similarity
-        ext_prob_sel <- ext_prob_topdown * competition_factor
+        # Transform avg_similarity
+        transformed_similarity <- 1 - exp(-competition_coefficient * avg_similarity)
         
+        # Combine both factors
+ext_prob_sel <- beta_ext * ext_prob_topdown + (1 - beta_ext) * transformed_similarity
+        
+        #ext_prob_sel <- e_0neg + e_1neg * (1 - exp(-a_eneg * transformed_similarity))
+        
+        print(L_cropped)
+        print(paste("p(ext_outd):", ext_prob_topdown))
+        print(paste("p(ext_avg_similarity):", avg_similarity))
+        print(paste("p(ext):", ext_prob_sel))
+        
+        # Apply the extinction rule for species with no resources
+        spp_noresources <- colSums(L_cropped) == 0
+        
+        if(length(which(spp_noresources == TRUE)) > 0){
+          
+          print(paste(length(which(spp_noresources == TRUE)), "secondary extinctions"))
+          
+        }
+        
+        # Set extinction probability to 1 for predators with no prey
+        ext_prob_sel[spp_noresources] <- 1
+        
+        print(paste("spp with no resources:", spp_noresources))
+        print(paste("p(ext) for spp with no resources:", ext_prob_sel[spp_noresources]))
         
         # Initialize extinction probabilities vector for all species
         ext_prob_sel_full <- numeric(Smax)
@@ -417,11 +436,14 @@ sim_model = function(seed, pars, nsteps) {
         
         # Identify guilds based on interactions
         # Herbivores: Species that consume only basal species
-        herbivores <- colSums(L[1:Sbasal, ] > 0) & colSums(L[(Sbasal + 1):(Sbasal + Smax), ] == 0)
+        herbivores <- (colSums(L_cropped[1:Sbasal, ] > 0) > 0) & (colSums(L_cropped[(Sbasal + 1):nrow(L_cropped), ] > 0) == 0)
+        
         # Predators: Species that consume only non-basal species
-        predators <- colSums(L[1:Sbasal, ] == 0) & colSums(L[(Sbasal + 1):(Sbasal + Smax), ] > 0)
+        predators <- (colSums(L_cropped[1:Sbasal, ] > 0) == 0) & (colSums(L_cropped[(Sbasal + 1):nrow(L_cropped), ] > 0) > 0)
+        
         # Omnivores: Species that consume both basal and non-basal species
-        omnivores <- colSums(L[1:Sbasal, ] > 0) & colSums(L[(Sbasal + 1):(Sbasal + Smax), ] > 0)
+        omnivores <- (colSums(L_cropped[1:Sbasal, ] > 0) > 0) & (colSums(L_cropped[(Sbasal + 1):nrow(L_cropped), ] > 0) > 0)
+        
         
         # Store guild information for this step
         df_guild <- rbind(df_guild, data.frame(step = step, 
@@ -430,18 +452,7 @@ sim_model = function(seed, pars, nsteps) {
                                                nomnivores = sum(omnivores)))
         
         
-        # Apply the extinction rule for species with no resources
-        spp_noresources <- colSums(L_cropped) == 0
-        
-        if(length(ext_prob_sel_full[spp_noresources]) > 0){
-          
-          print(paste(length(ext_prob_sel_full[spp_noresources]), "secondary extinctions"))
-          
-        }
-        
-        # Set extinction probability to 1 for predators with no prey
-        ext_prob_sel_full[spp_noresources] <- 1
-
+       
         # Neutral + selection
         ext_prob <- SN * (ext_prob_neutral) + (1 - SN) * (ext_prob_sel_full)
         
@@ -522,6 +533,7 @@ sim_model = function(seed, pars, nsteps) {
          traits = traits_mat, 
          anc = anc, 
          L_list = L_list, 
+         L_cropped_list = L_cropped_list,
          basal = basal,
          dist_anc = dist_anc,
          list_dist_anc = list_dist_anc,

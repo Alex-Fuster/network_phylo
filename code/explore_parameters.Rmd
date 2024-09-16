@@ -339,5 +339,211 @@ ggplot(plot_data, aes(x = sum_I, y = estab_prob)) +
        y = "Establishment Probability") +
   theme_minimal()
 
+
+
+pars$u_0pos <- 0.4   # Baseline probability
+pars$u_1pos <- 0.7  # Scaling factor
+pars$a_upos <- 1   # Shape of the exponential increase
+
+# Custom function for establishment probability
+custom_estab_prob <- function(sum_I, u_0pos = 0.4, u_1pos = 0.7, a_upos = 0.2) {
+  # Use an exponential function with an asymptote
+  # Ensure the probability starts at base_prob for sum_I = 1 and reaches max_prob at sum_I = 10
+  prob <- u_0pos + u_1pos * exp(-a_upos * sum_I)
+  return(prob)
+}
+
+# Define a range of integer values for sum_I
+sum_I_values <- 1:10  # Integer range from 1 to 10
+
+# Calculate establishment probabilities using the custom function
+estab_prob_values <- sapply(sum_I_values, custom_estab_prob, u_0pos = 0.4, u_1pos = 0.7, a_upos = 0.2)
+
+# Create a data frame for plotting
+plot_data <- data.frame(sum_I = sum_I_values, estab_prob = estab_prob_values)
+
+# Plot the result
+ggplot(plot_data, aes(x = sum_I, y = estab_prob)) +
+  geom_line(color = 'blue') +
+  geom_point(size = 2, color = 'red') +
+  labs(title = "Establishment Probability vs. Sum of Interactions",
+       x = "Sum of Interactions (sum_I)",
+       y = "Establishment Probability") +
+  theme_minimal()
+
+```
+
+# extinction probability
+
+```{r}
+# Load necessary library
+library(ggplot2)
+
+# Parameters for the extinction probability
+e_0neg <- 0   # Baseline probability (extinction probability when out_I is 0)
+e_1neg <- 0.7   # Scaling factor (maximum possible extinction probability)
+a_eneg <- 0.2   # Shape of the exponential decrease
+
+# Custom function for extinction probability
+custom_ext_prob <- function(out_I, e_0neg = e_0neg, e_1neg = e_1neg, a_eneg = a_eneg) {
+  # Use an exponential function with an asymptote
+  # Ensure the probability starts at e_0neg for out_I = 0 and reaches maximum value as out_I increases
+  prob <- e_0neg + e_1neg * (1 - exp(-a_eneg * out_I))
+  return(prob)
+}
+
+# Define a range of integer values for out_I (out-degree)
+out_I_values <- 1:10  # Integer range from 1 to 10
+
+# Calculate extinction probabilities using the custom function
+ext_prob_values <- sapply(out_I_values, custom_ext_prob, e_0neg = e_0neg, e_1neg = e_1neg, a_eneg = a_eneg)
+
+# Create a data frame for plotting
+plot_data <- data.frame(out_I = out_I_values, ext_prob = ext_prob_values)
+
+# Plot the result
+ggplot(plot_data, aes(x = out_I, y = ext_prob)) +
+  geom_line(color = 'blue') +
+  geom_point(size = 2, color = 'red') +
+  labs(title = "Extinction Probability vs. Out-Degree",
+       x = "Out-Degree (out_I)",
+       y = "Extinction Probability") +
+  theme_minimal()
+
+
+```
+
+
+
+# Prob extinction
+
+```{r}
+
+# Set initial parameter values
+pars$e_0neg <- 0   # Baseline probability
+pars$e_1neg <- 0.2 # Scaling factor
+pars$a_eneg <- 0.2 # Shape of the exponential decrease
+competition_coefficient <- 0.0025 # Competition coefficient
+
+# Custom function for extinction probability
+custom_ext_prob <- function(out_I_cropped, avg_similarity, e_0neg = 0, e_1neg = 0.2, a_eneg = 0.2, competition_coefficient = 0.0025) {
+  # Top-down control: extinction probability based on out-degree
+  ext_prob_topdown <- e_0neg + e_1neg * exp(-a_eneg * out_I_cropped)
+  
+  # Competition factor: increase extinction probability with average similarity
+  competition_factor <- 1 + competition_coefficient * avg_similarity
+  
+  # Total extinction probability adjusted by competition
+  ext_prob_sel <- ext_prob_topdown * competition_factor
+  return(ext_prob_sel)
+}
+
+# Define ranges for parameters
+out_I_values <- seq(0, 20, by = 1)  # Integer range for out-degree
+avg_similarity_values <- seq(0, 1.5, by = 0.1)  # Range for average similarity
+
+# Create a data frame to store results
+ext_prob_results <- expand.grid(out_I_cropped = out_I_values, avg_similarity = avg_similarity_values)
+ext_prob_results$ext_prob_sel <- mapply(custom_ext_prob, 
+                                        ext_prob_results$out_I_cropped, 
+                                        ext_prob_results$avg_similarity, 
+                                        MoreArgs = list(e_0neg = pars$e_0neg, 
+                                                        e_1neg = pars$e_1neg, 
+                                                        a_eneg = pars$a_eneg, 
+                                                        competition_coefficient = competition_coefficient))
+
+# Plot the results
+ggplot(ext_prob_results, aes(x = out_I_cropped, y = ext_prob_sel, color = avg_similarity, group = avg_similarity)) +
+  geom_line() +
+  scale_color_viridis_c(name = "Avg Similarity") +
+  labs(title = "Extinction Probability vs. Out-Degree and Average Similarity",
+       x = "Out-Degree (out_I_cropped)",
+       y = "Extinction Probability (ext_prob_sel)") +
+  theme_minimal()
+
+```
+
+```{r}
+
+# Set initial parameter values
+e_0neg <- 0   # Baseline probability
+e_1neg <- 0.2 # Scaling factor for out-degree
+a_eneg <- 0.1 # Shape of the exponential increase
+competition_coefficient <- 0.0025 # Competition coefficient
+beta_ext <- 0.75 # Control strength between out-degree and similarity
+
+# Custom function for extinction probability with balanced influence
+custom_ext_prob <- function(out_I_cropped, avg_similarity, beta_ext = 0.5, e_0neg = 0, e_1neg = 0.5, a_eneg = 0.2, competition_coefficient = 0.0025) {
+  # Extinction probability based on out-degree (top-down control)
+  ext_prob_out <- e_0neg + e_1neg * (1 - exp(-a_eneg * out_I_cropped))
+  
+  # Combine both factors with the weight parameter beta
+  ext_prob_sel <- beta_ext * ext_prob_out + (1 - beta_ext) * avg_similarity
+  return(ext_prob_sel)
+}
+
+# Define ranges for parameters
+out_I_values <- seq(0, 20, by = 1)  # Integer range for out-degree
+avg_similarity_values <- seq(0, 1.5, by = 0.1)  # Range for average similarity
+beta_values <- seq(0, 1, by = 0.25)  # Range for beta to test different strengths
+
+# Create a data frame to store results
+ext_prob_results <- expand.grid(out_I_cropped = out_I_values, avg_similarity = avg_similarity_values, beta_ext = beta_values)
+ext_prob_results$ext_prob_sel <- mapply(custom_ext_prob, 
+                                        ext_prob_results$out_I_cropped, 
+                                        ext_prob_results$avg_similarity, 
+                                        ext_prob_results$beta,
+                                        MoreArgs = list(e_0neg = e_0neg, 
+                                                        e_1neg = e_1neg, 
+                                                        a_eneg = a_eneg, 
+                                                        competition_coefficient = competition_coefficient))
+
+# Plot the results
+ggplot(ext_prob_results, aes(x = out_I_cropped, y = ext_prob_sel, color = avg_similarity, group = avg_similarity)) +
+  geom_line() +
+  facet_wrap(~ beta_ext, labeller = label_both) +
+  scale_color_viridis_c(name = "Avg Similarity") +
+  labs(title = "Extinction Probability vs. Out-Degree and Average Similarity",
+       x = "Out-Degree (out_I_cropped)",
+       y = "Extinction Probability (ext_prob_sel)") +
+  theme_minimal()
+
+
+```
+```{r}
+# Define ranges for parameters
+out_I_values <- seq(0, 20, by = 1)  # Integer range for out-degree
+avg_similarity_values <- seq(0, 1.5, by = 0.1)  # Range for average similarity
+beta_values <- seq(0, 1, by = 0.25)  # Range for beta to test different strengths
+competition_coefficient <- 0.05
+
+# Create a data frame to store results
+ext_prob_results <- expand.grid(out_I_cropped = out_I_values, avg_similarity = avg_similarity_values, beta = beta_values)
+ext_prob_results$ext_prob_sel <- mapply(function(out_I_cropped, avg_similarity, beta) {
+  # Extinction probability due to out-degree
+  ext_prob_out <- e_0neg + e_1neg * (1 - exp(-a_eneg * out_I_cropped))
+  
+  # Transform avg_similarity
+  transformed_similarity <- 1 - exp(-competition_coefficient * avg_similarity)
+  
+  # Combine both factors
+  ext_prob_sel <- beta * ext_prob_out + (1 - beta) * transformed_similarity
+  
+  return(ext_prob_sel)
+}, 
+ext_prob_results$out_I_cropped, 
+ext_prob_results$avg_similarity, 
+ext_prob_results$beta)
+
+# Plot the results
+ggplot(ext_prob_results, aes(x = out_I_cropped, y = ext_prob_sel, color = avg_similarity, group = avg_similarity)) +
+  geom_line() +
+  facet_wrap(~ beta, labeller = label_both) +
+  scale_color_viridis_c(name = "Avg Similarity") +
+  labs(title = "Extinction Probability vs. Out-Degree and Average Similarity",
+       x = "Out-Degree (out_I_cropped)",
+       y = "Extinction Probability (ext_prob_sel)") +
+  theme_minimal()
+
 ```
 
