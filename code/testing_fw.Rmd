@@ -373,7 +373,7 @@ pars$Sbasal = 25 # number of basal species
 pars$Smax = 1000 # Maximal number of species allowed
 #pars$Bspe = 4 # Basal species impact on the speciation probality
 #pars$Bext = 4 # Basal species impact on extinction probability
-pars$av_r = 0.1#0.185 # 0.2 range of the niche
+pars$av_r = 0.2#0.185 # 0.2 range of the niche
 pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
 #pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
 
@@ -820,9 +820,11 @@ plot_network_at_timestep_stratified <- function(matrix, timestep) {
 }
 
 # Timesteps to plot
-timesteps_to_plot <- c(1, 5, 10, 20, 30, 40)
+timesteps_to_plot <- c(30, 48)
 
- list_network_cropped <- lapply(network_list, function(mat) {
+list_network <- res_sim$network_crop_list[-c(1,2)]
+
+ list_network_cropped <- lapply(list_network, function(mat) {
    mat[-c(1:25), ]  # Remove the first 25 rows
  })
 
@@ -873,8 +875,8 @@ df_metrics_emp <- reshape_df_net.metrics(df_metrics = net_metr_empirical,
 #   
 # }
 
-list_adj_matrix.f <- list(list_network[length(list_network)],
-                        list_network[length(list_network)])
+list_adj_matrix.f <- list(list_network_cropped[[length(list_network_cropped)]],
+                        list_network_cropped[[length(list_network_cropped)]])
 
 net_metr_sim <- get_network_measures_from_adjacency(list_adj_matrix = list_adj_matrix.f)
 

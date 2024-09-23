@@ -49,81 +49,81 @@ rand_traits_mut <- function(traits_anc, pars, direction = "random") {
 }
 
 ########################################
-# Function to compute the interaction network from a set of traits
- get_L_mat = function(basal, pars, traits_mat) {
-   with(as.list(pars),{
-     L = matrix(0, nr = Smax+Sbasal, nc = Smax)
-     
-     # Lower boundary
-     low = traits_mat$o - traits_mat$r
-     low_mat = matrix(low, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)
-     
-     # Upper boundary
-     high = traits_mat$o + traits_mat$r
-     high_mat = matrix(high, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)	
-     S = nrow(traits_mat)
-     
-     # Matrix of niche positions
-     n_mat = matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
-     
-     # Add the basal species
-     n_basal = matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
-     n_mat = rbind(n_basal, n_mat)
-     
-     # Test interactions
-     L[n_mat > low_mat & n_mat < high_mat] = 1
-     if(Smax > 1) diag(L[(Sbasal+1):(Sbasal+Smax),]) = 0
-     L
-   })
- }
+# # Function to compute the interaction network from a set of traits
+#  get_L_mat = function(basal, pars, traits_mat) {
+#    with(as.list(pars),{
+#      L = matrix(0, nr = Smax+Sbasal, nc = Smax)
+#      
+#      # Lower boundary
+#      low = traits_mat$o - traits_mat$r
+#      low_mat = matrix(low, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)
+#      
+#      # Upper boundary
+#      high = traits_mat$o + traits_mat$r
+#      high_mat = matrix(high, nr = Smax+Sbasal, nc = Smax, byrow = TRUE)	
+#      S = nrow(traits_mat)
+#      
+#      # Matrix of niche positions
+#      n_mat = matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
+#      
+#      # Add the basal species
+#      n_basal = matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
+#      n_mat = rbind(n_basal, n_mat)
+#      
+#      # Test interactions
+#      L[n_mat > low_mat & n_mat < high_mat] = 1
+#      if(Smax > 1) diag(L[(Sbasal+1):(Sbasal+Smax),]) = 0
+#      L
+#    })
+#  }
 
 
-# get_L_mat <- function(basal, pars, traits_mat) {
-#   with(as.list(pars), {
-#     # Initialize the interaction matrix
-#     L <- matrix(0, nr = Smax + Sbasal, nc = Smax)
-#     
-#     # Lower and upper boundaries for niches
-#     low <- traits_mat$o - traits_mat$r
-#     low_mat <- matrix(low, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)
-#     high <- traits_mat$o + traits_mat$r
-#     high_mat <- matrix(high, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)  
-#     S <- nrow(traits_mat)
-#     
-#     # Matrix of niche positions
-#     n_mat <- matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
-#     
-#     # Add the basal species
-#     n_basal <- matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
-#     n_mat <- rbind(n_basal, n_mat)
-#     
-#     # Define the probability function (e.g., Gaussian probability)
-#     prob_interaction <- function(distance, sigma = 0.1) {
-#       exp(- (distance^2) / (2 * sigma^2))
-#     }
-#     
-#     # Calculate distances and interaction probabilities
-#     for (i in 1:(Smax + Sbasal)) {
-#       for (j in 1:Smax) {
-#         # Check for NA values before comparing
-#         if (!is.na(n_mat[i, j]) && !is.na(low_mat[i, j]) && !is.na(high_mat[i, j])) {
-#           if (n_mat[i, j] > low_mat[i, j] && n_mat[i, j] < high_mat[i, j]) {
-#             # Compute the distance from the optimal niche
-#             distance <- abs(n_mat[i, j] - traits_mat$o[j])
-#             # Compute probability of interaction
-#             interaction_prob <- prob_interaction(distance)
-#             # Assign interaction based on probability
-#             L[i, j] <- rbinom(1, 1, interaction_prob)  # Binomial draw: 1 interaction with probability 'interaction_prob'
-#           }
-#         }
-#       }
-#     }
-#     
-#     # Set diagonal to 0 (no self-interaction)
-#     if (Smax > 1) diag(L[(Sbasal + 1):(Sbasal + Smax), ]) <- 0
-#     L
-#   })
-# }
+get_L_mat <- function(basal, pars, traits_mat) {
+  with(as.list(pars), {
+    # Initialize the interaction matrix
+    L <- matrix(0, nr = Smax + Sbasal, nc = Smax)
+
+    # Lower and upper boundaries for niches
+    low <- traits_mat$o - traits_mat$r
+    low_mat <- matrix(low, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)
+    high <- traits_mat$o + traits_mat$r
+    high_mat <- matrix(high, nr = Smax + Sbasal, nc = Smax, byrow = TRUE)
+    S <- nrow(traits_mat)
+
+    # Matrix of niche positions
+    n_mat <- matrix(traits_mat$n, nr = Smax, nc = Smax, byrow = FALSE)
+
+    # Add the basal species
+    n_basal <- matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
+    n_mat <- rbind(n_basal, n_mat)
+
+    # Define the probability function (e.g., Gaussian probability)
+    prob_interaction <- function(distance, sigma = 0.05) {
+      exp(- (distance^2) / (2 * sigma^2))
+    }
+
+    # Calculate distances and interaction probabilities
+    for (i in 1:(Smax + Sbasal)) {
+      for (j in 1:Smax) {
+        # Check for NA values before comparing
+        if (!is.na(n_mat[i, j]) && !is.na(low_mat[i, j]) && !is.na(high_mat[i, j])) {
+          if (n_mat[i, j] > low_mat[i, j] && n_mat[i, j] < high_mat[i, j]) {
+            # Compute the distance from the optimal niche
+            distance <- abs(n_mat[i, j] - traits_mat$o[j])
+            # Compute probability of interaction
+            interaction_prob <- prob_interaction(distance)
+            # Assign interaction based on probability
+            L[i, j] <- rbinom(1, 1, interaction_prob)  # Binomial draw: 1 interaction with probability 'interaction_prob'
+          }
+        }
+      }
+    }
+
+    # Set diagonal to 0 (no self-interaction)
+    if (Smax > 1) diag(L[(Sbasal + 1):(Sbasal + Smax), ]) <- 0
+    L
+  })
+}
 
 
 ########################################
@@ -407,9 +407,9 @@ ext_prob_sel <- beta_ext * ext_prob_topdown + (1 - beta_ext) * transformed_simil
         
         #ext_prob_sel <- e_0neg + e_1neg * (1 - exp(-a_eneg * transformed_similarity))
         
-        print(L_cropped)
-        print(paste("p(ext_outd):", ext_prob_topdown))
-        print(paste("p(ext_avg_similarity):", avg_similarity))
+       # print(L_cropped)
+       # print(paste("p(ext_outd):", ext_prob_topdown))
+       # print(paste("p(ext_avg_similarity):", avg_similarity))
         print(paste("p(ext):", ext_prob_sel))
         
         # Apply the extinction rule for species with no resources
