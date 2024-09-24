@@ -410,7 +410,7 @@ ext_prob_sel <- beta_ext * ext_prob_topdown + (1 - beta_ext) * transformed_simil
        # print(L_cropped)
        # print(paste("p(ext_outd):", ext_prob_topdown))
        # print(paste("p(ext_avg_similarity):", avg_similarity))
-        print(paste("p(ext):", ext_prob_sel))
+        print(paste("p(ext) range:", range(ext_prob_sel)))
         
         # Apply the extinction rule for species with no resources
         spp_noresources <- colSums(L_cropped) == 0
@@ -424,7 +424,7 @@ ext_prob_sel <- beta_ext * ext_prob_topdown + (1 - beta_ext) * transformed_simil
         # Set extinction probability to 1 for predators with no prey
         ext_prob_sel[spp_noresources] <- 1
         
-        print(paste("spp with no resources:", spp_noresources))
+      #  print(paste("spp with no resources:", spp_noresources))
         print(paste("p(ext) for spp with no resources:", ext_prob_sel[spp_noresources]))
         
         # Initialize extinction probabilities vector for all species

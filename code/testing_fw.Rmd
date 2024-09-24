@@ -430,7 +430,7 @@ pars$midpoint <- 0.5  # Midpoint for the logistic curve
 # parameters simulation
 
 ```{r}
-nsteps =  50
+nsteps =  250
 nsim = 1
 
 ```
@@ -820,7 +820,7 @@ plot_network_at_timestep_stratified <- function(matrix, timestep) {
 }
 
 # Timesteps to plot
-timesteps_to_plot <- c(30, 48)
+timesteps_to_plot <- c(20,50,100,150,200,248)
 
 list_network <- res_sim$network_crop_list[-c(1,2)]
 
@@ -874,6 +874,12 @@ df_metrics_emp <- reshape_df_net.metrics(df_metrics = net_metr_empirical,
 #                                            pres_mat = res$presence_matrix)
 #   
 # }
+
+list_network <- res_sim$network_crop_list[-c(1,2)]
+
+ list_network_cropped <- lapply(list_network, function(mat) {
+   mat[-c(1:25), ]  # Remove the first 25 rows
+ })
 
 list_adj_matrix.f <- list(list_network_cropped[[length(list_network_cropped)]],
                         list_network_cropped[[length(list_network_cropped)]])
