@@ -28,7 +28,7 @@ rand_traits_mut <- function(traits_anc, pars, direction = "random") {
     if (direction == "greater") {
       # Generate mutant trait greater than ancestor trait
       n_m <- rbeta(1, shape1 = a, shape2 = beta_n)
-      n_m <- n + abs(n_m - n)  # Ensure n_m is on the upper side of n
+      n_m <- n + abs(n_m - n) * 0.8  # Ensure n_m is on the upper side of n
       n_m <- min(n_m, 1)  # Make sure n_m does not exceed 1
     } else if (direction == "lesser") {
       # Generate mutant trait less than ancestor trait
@@ -158,7 +158,7 @@ sim_model = function(seed, pars, nsteps) {
     set.seed(seed)
     
     # Draw the traits of the producers
-    basal = runif(Sbasal, 0, 0.2)
+    basal = runif(Sbasal, 0, 0.005)
     
     # Draw the first species traits
     traits_mat = matrix(nr = Smax, nc = 3)
@@ -282,7 +282,7 @@ sim_model = function(seed, pars, nsteps) {
               if(S >= Smax) break
               
               # Calculate the absolute difference between ancestor and mutant niche trait values
-              displacement_condition <- abs(traits_anc["n"] - traits_mut1["n"]) <= 0.05
+              displacement_condition <- abs(traits_anc["n"] - traits_mut1["n"]) <= 0.1
               
               # Apply the extinction rule for the ancestor based on the condition
               if (displacement_condition) {
@@ -410,7 +410,7 @@ ext_prob_sel <- beta_ext * ext_prob_topdown + (1 - beta_ext) * transformed_simil
        # print(L_cropped)
        # print(paste("p(ext_outd):", ext_prob_topdown))
        # print(paste("p(ext_avg_similarity):", avg_similarity))
-        print(paste("p(ext) range:", range(ext_prob_sel)))
+        print(paste("p(ext) range:", min(ext_prob_sel), max(ext_prob_sel)))
         
         # Apply the extinction rule for species with no resources
         spp_noresources <- colSums(L_cropped) == 0

@@ -369,11 +369,11 @@ pars = list()
 
 
 pars$competition_coefficient = 0.025
-pars$Sbasal = 25 # number of basal species
+pars$Sbasal = 5 # number of basal species
 pars$Smax = 1000 # Maximal number of species allowed
 #pars$Bspe = 4 # Basal species impact on the speciation probality
 #pars$Bext = 4 # Basal species impact on extinction probability
-pars$av_r = 0.2#0.185 # 0.2 range of the niche
+pars$av_r = 0.12#0.185 # 0.2 range of the niche
 pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
 #pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
 
@@ -430,7 +430,7 @@ pars$midpoint <- 0.5  # Midpoint for the logistic curve
 # parameters simulation
 
 ```{r}
-nsteps =  250
+nsteps =  60
 nsim = 1
 
 ```
@@ -479,9 +479,9 @@ pars$u_0pos <- 0.4   # Baseline probability
 pars$u_1pos <- 0.7  # Scaling factor
 pars$a_upos <- 0.2   # Shape of the exponential increase
 
-pars$e_0neg <- 0   # Baseline probability
-pars$e_1neg <- 0.01 #0.5 # Scaling factor for out-degree
-pars$a_eneg <- 0.1 #0.2  Shape of the exponential increase
+pars$e_0neg <- 0.01   # Baseline probability
+pars$e_1neg <- 0.05 #0.5 # Scaling factor for out-degree
+pars$a_eneg <- 0.2 #0.2  Shape of the exponential increase
 
 pars$beta_ext <- 0.5 # Control strength between out-degree and similarity
 
@@ -820,12 +820,12 @@ plot_network_at_timestep_stratified <- function(matrix, timestep) {
 }
 
 # Timesteps to plot
-timesteps_to_plot <- c(20,50,100,150,200,248)
+timesteps_to_plot <- c(40,50)
 
 list_network <- res_sim$network_crop_list[-c(1,2)]
 
  list_network_cropped <- lapply(list_network, function(mat) {
-   mat[-c(1:25), ]  # Remove the first 25 rows
+   mat[-c(1:pars$Sbasal), ]  # Remove the first 25 rows
  })
 
 # Create plots for the specified timesteps using ggraph with stratified layout
@@ -878,7 +878,7 @@ df_metrics_emp <- reshape_df_net.metrics(df_metrics = net_metr_empirical,
 list_network <- res_sim$network_crop_list[-c(1,2)]
 
  list_network_cropped <- lapply(list_network, function(mat) {
-   mat[-c(1:25), ]  # Remove the first 25 rows
+   mat[-c(1:pars$Sbasal), ]  # Remove the first 25 rows
  })
 
 list_adj_matrix.f <- list(list_network_cropped[[length(list_network_cropped)]],
@@ -929,6 +929,274 @@ plot_metrics_comparison_sim_emp
 
 #ggsave("plot_metrics_comparison_sim_emp.png", height = 12, width = 7)
 ```
+
+
+# test phylogenetic signal
+
+```{r}
+sister.group<-function(sis.names,sis.dist){
+	n<-length(sis.dist)
+	distances<-paste0(rep(":",n),sis.dist)
+	sis<-paste0(sis.names,distances)
+	res<-paste0(sis,collapse=",")
+	res<-paste0("(",res,")")
+	res
+}
+
+ToPhylo<-function(data){
+	data.2<-data
+	data.2$repr<-data$spp
+	sisters<-levels(as.factor(data$spp))
+	mothers<-levels(as.factor(data$ancestor))
+	tips<-setdiff(sisters,mothers)
+	root<-setdiff(mothers,sisters)
+	foc.nodes<-unique(data[which(data$spp%in%tips),"ancestor"])
+	n<-length(foc.nodes)
+	data.2$repr[data.2$spp%in%tips]<-data.2$repr[data.2$spp%in%tips]
+	while(n>1){
+		foc.nodes2<-unique(data.2[which(data.2$spp%in%foc.nodes),"ancestor"])
+		for(i in 1:n){
+			daughters<-data.2[which(data.2$ancestor==foc.nodes[i]),"repr"]
+			#print(daughters)
+			daughters.dist<-data.2[which(data.2$ancestor==foc.nodes[i]),"distance"]
+			data.2$repr[data.2$spp==foc.nodes[i]]<-paste0(sister.group(daughters,daughters.dist),foc.nodes[i])
+		}
+		tips<-foc.nodes
+		foc.nodes<-foc.nodes2
+		n<-length(foc.nodes)
+	}
+	daughters<-data.2[which(data.2$ancestor==foc.nodes[1]),"repr"]
+			#print(daughters)
+	daughters.dist<-data.2[which(data.2$ancestor==foc.nodes[1]),"distance"]
+	paste0(sister.group(daughters,daughters.dist),root)
+}
+
+
+ToPhylo2 <- function(data){
+  data.2 <- data
+  data.2$repr <- data$spp
+  sisters <- levels(as.factor(data$spp))
+  mothers <- levels(as.factor(data$ancestor))
+  tips <- setdiff(sisters, mothers)
+  root <- setdiff(mothers, sisters)
+  
+  # In your case, the root might be ancestor=0, we handle that.
+  if(length(root) == 0) root <- 0
+  foc.nodes <- unique(data[which(data$spp %in% tips), "ancestor"])
+  n <- length(foc.nodes)
+  data.2$repr[data.2$spp %in% tips] <- data.2$repr[data.2$spp %in% tips]
+  
+  while(n > 1){
+    foc.nodes2 <- unique(data.2[which(data.2$spp %in% foc.nodes), "ancestor"])
+    for(i in 1:n){
+      daughters <- data.2[which(data.2$ancestor == foc.nodes[i]), "repr"]
+      daughters.dist <- data.2[which(data.2$ancestor == foc.nodes[i]), "distance"]
+      
+      # This block handles the case where the ancestor is still extant (coexists with mutants)
+      if(foc.nodes[i] %in% data.2$spp){
+        daughters <- c(daughters, foc.nodes[i])
+        daughters.dist <- c(daughters.dist, 0)  # Set ancestor's distance as 0
+      }
+      
+      data.2$repr[data.2$spp == foc.nodes[i]] <- paste0(sister.group(daughters, daughters.dist), foc.nodes[i])
+    }
+    tips <- foc.nodes
+    foc.nodes <- foc.nodes2
+    n <- length(foc.nodes)
+  }
+  
+  daughters <- data.2[which(data.2$ancestor == foc.nodes[1]), "repr"]
+  daughters.dist <- data.2[which(data.2$ancestor == foc.nodes[1]), "distance"]
+  
+  paste0(sister.group(daughters, daughters.dist), root, ";")  # Ensuring the tree ends with a semicolon
+}
+```
+
+
+# process output
+
+```{r}
+check_matrix.with.values <- function(matrix) {
+  result <- any(matrix != 0)
+  return(result)
+}
+
+
+eliminate_basals <- function(matrix, nbasals) {
+  mat <- matrix[(nbasals+1):nrow(matrix),]
+  return(mat)
+}
+
+change_sppnames_letters_ancdist.table <- function(mat) {
+  mat[,"ancestor"] <- chartr("0123456789", "ABCDEFGHIJ", mat[,"ancestor"])
+  mat[,"spp"] <- chartr("0123456789", "ABCDEFGHIJ", mat[,"spp"])
+  return(mat)
+}
+
+# convert colnames and rownames from numbers to letters
+convert_sppnames_toletters <-  function(mat) {
+  rownames(mat) <- chartr("0123456789", "ABCDEFGHIJ", rownames(mat))
+  colnames(mat) <- chartr("0123456789", "ABCDEFGHIJ", colnames(mat))
+  return(mat)
+}
+
+# set colnames and rownames as numbers
+set_sppNames_numbers <- function(mat) {
+  rownames(mat) <- seq(1:nrow(mat))
+  colnames(mat) <- seq(1:ncol(mat))
+  return(mat)  
+}
+
+
+# number of timesteps
+n_steps <- length(res_sim$network_crop_list)
+
+presence_matrix <- res_sim$presence_matrix[1:n_steps,] # Crop presence matrix to n_steps
+
+#### Identify timesteps where phylogenetic distances cant be calculated
+non.valid_timesteps_phylo_distance <- c(which(rowSums(presence_matrix) < 3))
+# until what timestep need to discard:
+final.discarded_timestep <- non.valid_timesteps_phylo_distance[length(non.valid_timesteps_phylo_distance)]
+
+#### homogenize elements to start from valid timesteps
+# ancestry table
+list_anc_dist <- res_sim$list_anc_dist[(final.discarded_timestep+1):length(res_sim$list_anc_dist)]
+# network list
+network_list <- res_sim$network_list[(final.discarded_timestep+1):length(res_sim$network_list)]
+# network cropped list
+network_cropped_list <- res_sim$network_crop_list[(final.discarded_timestep+1):length(res_sim$network_crop_list)]
+# presence matrix
+presence_matrix <- presence_matrix[(final.discarded_timestep+1):nrow(presence_matrix),]
+
+
+## ------------------- Check
+if (length(which(is.null(network_list))) > 0) {
+  print("PROBLEM - null network somewhere")
+} 
+if (length(which(is.null(network_cropped_list))) > 0) {
+  print("PROBLEM - null network somewhere in cropped networks")
+} 
+if(length(list_anc_dist) != length(network_list)){
+  print("PROBLEM - length list_anc_dist != length(network_list)")
+}
+## -------------------
+
+
+#### Eliminate basal species
+network_list <- lapply(network_list, eliminate_basals, nbasals = pars$Sbasal)
+croppednetwork_list <- lapply(network_cropped_list, eliminate_basals, nbasals = pars$Sbasal)
+
+
+#### Convert spp names from numbers to letters
+## ancestry-distances table
+list_anc_dist_letters <- lapply(list_anc_dist, change_sppnames_letters_ancdist.table)
+## Network list 
+list_networks_sppnames_numbers <- lapply(network_list, set_sppNames_numbers)
+list_croppednetworks_sppnames_numbers <- lapply(network_cropped_list, set_sppNames_numbers)
+
+list_networks_sppnames_letters <- lapply(list_networks_sppnames_numbers, convert_sppnames_toletters)
+list_croppednetworks_sppnames_letters <- lapply(list_croppednetworks_sppnames_numbers, convert_sppnames_toletters)
+
+
+ ## ------------------- Check
+  if(length(list_anc_dist_letters) != length(list_networks_sppnames_letters)){
+    print("PROBLEM - list_anc_dist_letters != list_networks_sppnames_letters")
+  } 
+  if(length(list_anc_dist_letters) != length(list_croppednetworks_sppnames_letters)){
+    print("PROBLEM - list_anc_dist_letters != list_croppednetworks_sppnames_letters")
+  } 
+  ## -------------------
+
+
+## Loop for obtaining phylogenetic distances:
+
+
+tree_raw <- ToPhylo(list_anc_dist_letters[[timestep]])
+tree_raw <- paste(tree_raw, "root")
+tree_raw <- read.tree(text = sub("A root",";",tree_raw))
+tree_corrected<-tree_raw
+tree_corrected$edge.length<-sapply(tree_corrected$edge.length,function(x) ifelse(x==0,1e-5,x))
+phylo.vcv<-vcv(tree_corrected)
+phylo.corr<-cov2cor(phylo.vcv)
+
+phylo.corr_cropped <- phylo.corr[names(which(presence_matrix[timestep,] == 1)), 
+                                        names(which(presence_matrix[timestep,] == 1))]
+
+svd_eigen.phy<-eigen(list_phylo.corr_cropped[[timestep]], symmetric = T)$vec
+
+
+compute_svd_eigen_phy <- function(data) {
+  # Generate the phylogenetic tree in Newick format using ToPhylo2
+  tree_raw <- ToPhylo2(data)
+  
+  # Convert the Newick string into a tree structure
+  tree <- read.tree(text = tree_raw)
+  
+  # Adjust edge lengths
+  tree$edge.length <- sapply(tree$edge.length, function(x) ifelse(x == 0, 1e-5, x))
+  
+  # Compute the variance-covariance matrix
+  phylo_vcv <- vcv(tree)
+  
+  # Compute the correlation matrix
+  phylo_corr <- cov2cor(phylo_vcv)
+  
+  # Crop the correlation matrix to the currently present species
+ # Identify present species based on the ancestry table
+  present_species <- data$spp[data$`A/E` == "A"]
+  
+  # Crop the correlation matrix to the currently present species
+  phylo_corr_cropped <- phylo_corr[present_species, present_species, drop = FALSE]
+  
+  # Perform SVD on the cropped correlation matrix
+  svd_eigen.phy <- eigen(phylo_corr_cropped, symmetric = TRUE)$vectors
+  
+  return(svd_eigen.phy)
+}
+
+# Apply the function to all elements in list_anc_dist_letters
+list_svd_eigen_phy <- lapply(seq_along(list_anc_dist_letters), function(i) {
+  compute_svd_eigen_phy(list_anc_dist_letters[[i]])
+})
+
+
+list_anc_dist_letters1 <- list_anc_dist_letters[-1]
+
+list_svd_eigen_phy <- lapply(seq_along(list_anc_dist_letters1), function(i) {
+  compute_svd_eigen_phy(list_anc_dist_letters1[[i]])
+})
+
+```
+
+
+```{r}
+# Initialize a list to store results
+list_svd_eigen_phy <- vector("list", length(list_anc_dist_letters))
+
+# Loop through each timestep and try to compute svd_eigen.phy
+for (i in seq_along(list_anc_dist_letters)) {
+  tryCatch({
+    # Attempt to compute the result
+    list_svd_eigen_phy[[i]] <- compute_svd_eigen_phy(list_anc_dist_letters[[i]])
+  }, error = function(e) {
+    # Print the timestep and the error message
+    message(paste("Error at timestep:", i))
+    message("Error message: ", e$message)
+  })
+}
+```
+
+
+```{r}
+tree_raw <- ToPhylo(list_anc_dist_letters[[timestep]])
+```
+
+
+
+
+
+
+
 
 
 
