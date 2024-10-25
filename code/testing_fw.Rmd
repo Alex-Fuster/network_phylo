@@ -366,8 +366,6 @@ compute_dist_matrices <- function(results_simulation, int, Smax, nbasals) {
 ```{r}
 pars = list()
 
-
-
 pars$competition_coefficient = 0.025
 pars$Sbasal = 5 # number of basal species
 pars$Smax = 1000 # Maximal number of species allowed
@@ -422,15 +420,13 @@ pars$a_epos = 1.2
 pars$k <- 10  # Steepness of the logistic curve
 pars$midpoint <- 0.5  # Midpoint for the logistic curve
 
-
-
 ```
 
 
 # parameters simulation
 
 ```{r}
-nsteps =  60
+nsteps =  150
 nsim = 1
 
 ```
@@ -449,7 +445,7 @@ Change pars$SN to simulate different scenarios:
 ```{r}
 
 pars$SN = 1 # strength for neutral-driven evolution
-pars$estab_prob_neutral = rep(0.6, pars$Smax) # neutral probability of establishment
+pars$estab_prob_neutral = 0.6 # neutral probability of establishment
 pars$ext_prob_neutral = 0.07 #0.0003 # neutral probability of extinction
 
 ```
@@ -485,7 +481,7 @@ pars$a_eneg <- 0.2 #0.2  Shape of the exponential increase
 
 pars$beta_ext <- 0.5 # Control strength between out-degree and similarity
 
-pars$competition_coefficient <- 0.05
+pars$competition_coefficient <- 0 #0.1 #0.1 #0.06
 
 ```
 
@@ -820,9 +816,9 @@ plot_network_at_timestep_stratified <- function(matrix, timestep) {
 }
 
 # Timesteps to plot
-timesteps_to_plot <- c(40,50)
+timesteps_to_plot <- c(139,140,141,142,143,144)
 
-list_network <- res_sim$network_crop_list[-c(1,2)]
+list_network <- res_sim$network_crop_list
 
  list_network_cropped <- lapply(list_network, function(mat) {
    mat[-c(1:pars$Sbasal), ]  # Remove the first 25 rows
@@ -1160,16 +1156,22 @@ list_svd_eigen_phy <- lapply(seq_along(list_anc_dist_letters), function(i) {
 })
 
 
+
+```
+
+
+
+
+```{r}
+
 list_anc_dist_letters1 <- list_anc_dist_letters[-1]
 
 list_svd_eigen_phy <- lapply(seq_along(list_anc_dist_letters1), function(i) {
   compute_svd_eigen_phy(list_anc_dist_letters1[[i]])
 })
 
-```
 
 
-```{r}
 # Initialize a list to store results
 list_svd_eigen_phy <- vector("list", length(list_anc_dist_letters))
 

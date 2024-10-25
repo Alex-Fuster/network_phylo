@@ -28,13 +28,13 @@ rand_traits_mut <- function(traits_anc, pars, direction = "random") {
     if (direction == "greater") {
       # Generate mutant trait greater than ancestor trait
       n_m <- rbeta(1, shape1 = a, shape2 = beta_n)
-      n_m <- n + abs(n_m - n) * 0.8  # Ensure n_m is on the upper side of n
+      n_m <- n + abs(n_m - n) * 0.7  # Ensure n_m is on the upper side of n
       n_m <- min(n_m, 1)  # Make sure n_m does not exceed 1
     } else if (direction == "lesser") {
       # Generate mutant trait less than ancestor trait
       n_m <- rbeta(1, shape1 = a, shape2 = beta_n)
       # Ensure n_m is on the lower side of n and within a reasonable range
-      n_m <- n - abs(n_m - n) * 0.8  # Adjust this factor (0.5) to control how much lesser
+      n_m <- n - abs(n_m - n) * 0.7  # Adjust this factor (0.5) to control how much lesser
       n_m <- max(n_m, 0)  # Make sure n_m is not below 0
     }
     
@@ -96,9 +96,13 @@ get_L_mat <- function(basal, pars, traits_mat) {
     # Add the basal species
     n_basal <- matrix(basal, nr = Sbasal, nc = Smax, byrow = FALSE)
     n_mat <- rbind(n_basal, n_mat)
+    
+    # Combine basal species with other species as potential prey
+    n_prey <- c(basal, traits_mat$n)  # Include basal species as prey
+    n_predator <- traits_mat$n  # Only non-basal species are potential predators
 
     # Define the probability function (e.g., Gaussian probability)
-    prob_interaction <- function(distance, sigma = 0.05) {
+    prob_interaction <- function(distance, sigma = 0.04) {
       exp(- (distance^2) / (2 * sigma^2))
     }
 
@@ -112,6 +116,12 @@ get_L_mat <- function(basal, pars, traits_mat) {
             distance <- abs(n_mat[i, j] - traits_mat$o[j])
             # Compute probability of interaction
             interaction_prob <- prob_interaction(distance)
+            
+            # Apply penalty if prey has a higher niche position than the predator
+            if (n_prey[i] > n_predator[j]) {
+              interaction_prob <- interaction_prob * 0.2
+            }
+            
             # Assign interaction based on probability
             L[i, j] <- rbinom(1, 1, interaction_prob)  # Binomial draw: 1 interaction with probability 'interaction_prob'
           }
@@ -124,6 +134,9 @@ get_L_mat <- function(basal, pars, traits_mat) {
     L
   })
 }
+
+
+
 
 
 ########################################
@@ -146,6 +159,7 @@ get_L_vec = function(basal, pars, traits_mat, traits_mut) {
     L_vec
   })
 }
+
 
 
 
