@@ -444,6 +444,11 @@ ext_prob_sel <- beta_ext * ext_prob_topdown + (1 - beta_ext) * transformed_simil
         # Initialize extinction probabilities vector for all species
         ext_prob_sel_full <- numeric(Smax)
         
+        ##############################
+        
+        ext_prob_sel <- ext_prob_sel*multiplier
+        ##############################
+        
         # Assign calculated probabilities to the correct positions for present species
         ext_prob_sel_full[present_non_basal] <- ext_prob_sel
         

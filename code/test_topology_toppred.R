@@ -63,3 +63,56 @@ print(test_result)
 
 
 ####################
+
+
+library(ggplot2)
+library(dplyr)
+
+# Function to generate the predator-prey plot from a specific timestep's traits data
+plot_predator_prey_relationship <- function(traits_df, basal_species_count) {
+  # Extract body size, range, and optimum for each species from traits_df
+  traits_mat <- traits_df %>% 
+    rename(n = n, r = r, o = o) %>%
+    mutate(r = 0.12,            # Fixed range
+           o = n / 2)           # Optimum as half of niche position
+  
+  # Generate basal species (prey only)
+  basal <- traits_mat[1:basal_species_count, ]
+  traits_mat <- rbind(basal, traits_mat[-(1:basal_species_count), ])
+  
+  # Convert basal niche positions to a vector
+  basal_vec <- as.numeric(basal$n)
+  
+  # Compute the interaction matrix using get_L_mat
+  L <- get_L_mat(basal_vec, pars, traits_mat)
+  
+  # Extract predator-prey pairs based on L matrix
+  interactions <- expand.grid(predator = 1:nrow(L), prey = 1:ncol(L)) %>%
+    filter(L[cbind(predator, prey)] == 1) %>%
+    mutate(
+      predator_size = traits_mat$n[predator],
+      prey_size = traits_mat$n[prey],
+      predator_range = traits_mat$r[predator],
+      predator_optimum = traits_mat$o[predator]
+    )
+  
+  # Generate 1:1 line for reference
+  one_to_one <- data.frame(x = seq(0, 1, length.out = 100), y = seq(0, 1, length.out = 100))
+  
+  # Plot the predator-prey body size relationship
+  ggplot(interactions, aes(x = predator_size, y = prey_size)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +  # 1:1 line
+    geom_point(aes(color = "Predator-Prey Pair"), alpha = 0.6) +
+    geom_errorbar(aes(ymin = predator_optimum - predator_range / 2, 
+                      ymax = predator_optimum + predator_range / 2), width = 0.02, color = "blue") +
+    geom_smooth(method = "lm", color = "black", se = FALSE) +  # Linear fit (centroid)
+    stat_quantile(quantiles = c(0.05, 0.95), linetype = "dotted", color = "red") +  # Range boundaries
+    labs(x = "Predator Body Size", y = "Prey Body Size",
+         title = "Predator-Prey Body Size Relationship at Given Timestep") +
+    scale_color_manual(values = c("Predator-Prey Pair" = "darkblue")) +
+    theme_minimal() +
+    theme(legend.position = "none")
+}
+
+
+plot_predator_prey_relationship(res_sim$traits_df, basal_species_count = pars$Sbasal)

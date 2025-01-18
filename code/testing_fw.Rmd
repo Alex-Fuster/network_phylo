@@ -29,7 +29,9 @@ source(here::here("code/functions/function_compute_df_centr_longevity.R"))
 
 #source(here::here("code/functions/functions_simulation_foodweb.R"))
 
-source(here::here("code/functions/functions_simulation_inspection.R"))
+#source(here::here("code/functions/functions_simulation_foodweb.R"))
+
+source(here::here("code/functions/functions_simulation_bif_fw_beta_probn.R"))
 
 ```
 
@@ -371,7 +373,7 @@ pars$Sbasal = 5 # number of basal species
 pars$Smax = 1000 # Maximal number of species allowed
 #pars$Bspe = 4 # Basal species impact on the speciation probality
 #pars$Bext = 4 # Basal species impact on extinction probability
-pars$av_r = 0.12#0.185 # 0.2 range of the niche
+pars$av_r = 0.18#0.185 # 0.2 range of the niche
 pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
 #pars$sd = 0.5*pars$av_r + 0.0001 # Standard deviation of the normal distribution used to calculate the niche optimum trait of a new species
 
@@ -426,44 +428,13 @@ pars$midpoint <- 0.5  # Midpoint for the logistic curve
 # parameters simulation
 
 ```{r}
-nsteps =  150
+nsteps =  60
 nsim = 1
 
 ```
 
 
-## Add neutral
 
-Change pars$SN to simulate different scenarios:
-
-- Only neutral: pars$SN = 1
-- Only selection: pars$SN = 0
-- Equal neutral and selection: pars$SN = 0.5
-- Stronger neutral: pars$SN = 0.8
-- Stronger selection: pars$SN = 0.2
-
-```{r}
-
-pars$SN = 1 # strength for neutral-driven evolution
-pars$estab_prob_neutral = 0.6 # neutral probability of establishment
-pars$ext_prob_neutral = 0.07 #0.0003 # neutral probability of extinction
-
-```
-
-
----------------------------
-TESTING for neutral
-
-```{r}
-#pars$I_max <- 100  # Increase the maximum number of species allowed to interact
-#pars$u_max <- 0.15  # Decrease the upper bound on speciation probability
-#pars$d <- 0.75  # Decrease the rate at which speciation probability drops with increasing S
-pars$sd <- 0.6 * pars$av_r + 0.001  # Increase the trait variability during speciation
-pars$competition_coefficient <- 0.025  # Reduce the impact of competition
-
-pars$u_max <- 0.25  # Increase the upper bound on speciation probability
-
-```
 
 --------------------------
 beta_ext * 0.097 + (1 - beta_ext) * avg_similarity
@@ -479,14 +450,24 @@ pars$e_0neg <- 0.01   # Baseline probability
 pars$e_1neg <- 0.05 #0.5 # Scaling factor for out-degree
 pars$a_eneg <- 0.2 #0.2  Shape of the exponential increase
 
-pars$beta_ext <- 0.5 # Control strength between out-degree and similarity
+pars$beta_ext <- 0.8 # Control strength between out-degree and similarity
 
-pars$competition_coefficient <- 0 #0.1 #0.1 #0.06
+pars$competition_coefficient <- 0.01 #0.1 #0.1 #0.06
+
+pars$multiplier = 0.9 #1
 
 ```
 
-New pars based on testing (13 sept) -> as soon as 2 species, one gets extinct. It stays in 1 spp.
 
+Top predators with:
+
+
+```{r}
+pars$av_r = 0.18
+pars$beta_ext <- 0.8 # Control strength between out-degree and similarity
+pars$competition_coefficient <- 0.003 #0.1 #0.1 #0.06
+pars$multiplier = 1 # or also 0.8
+```
 
 ### Simulation
 
@@ -816,7 +797,7 @@ plot_network_at_timestep_stratified <- function(matrix, timestep) {
 }
 
 # Timesteps to plot
-timesteps_to_plot <- c(139,140,141,142,143,144)
+timesteps_to_plot <- c(15,16,17,18,19,20,25,30,35,50, 59)
 
 list_network <- res_sim$network_crop_list
 
