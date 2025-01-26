@@ -1,7 +1,7 @@
-setwd("C:\\Massol\\Encadrement\\2021- Thèse Fuster")
+#setwd("C:\\Massol\\Encadrement\\2021- Thèse Fuster")
 
 
-data<-data.frame("spp"=c("A","B","C","D","E","F"),"ancestor"=c("C","C","G","F","F","G"),"A/E"=c(1,1,0,1,1,0),"distance"=c(2,2,3,4,4,1))
+#data<-data.frame("spp"=c("A","B","C","D","E","F"),"ancestor"=c("C","C","G","F","F","G"),"A/E"=c(1,1,0,1,1,0),"distance"=c(2,2,3,4,4,1))
 
 #write.tree(phy, file = "newick1.txt")
 
@@ -42,14 +42,14 @@ ToPhylo<-function(data){
 	paste0(sister.group(daughters,daughters.dist),root)
 }
 
-phy<-ToPhylo(data)
-phy
-
-
-library(ape)
-tree<-read.tree(text = gsub("G",";",phy))
-plot(tree)
-write.tree(tree, file = "newick1.txt")
+# phy<-ToPhylo(data)
+# phy
+# 
+# 
+# library(ape)
+# tree<-read.tree(text = gsub("G",";",phy))
+# plot(tree)
+# write.tree(tree, file = "newick1.txt")
 
 
 ############################
@@ -62,7 +62,7 @@ ToPhylo2 <- function(data){
   tips <- setdiff(sisters, mothers)
   root <- setdiff(mothers, sisters)
   
-  # In your case, the root might be ancestor=0, we handle that.
+  # the root might be ancestor=0
   if(length(root) == 0) root <- 0
   foc.nodes <- unique(data[which(data$spp %in% tips), "ancestor"])
   n <- length(foc.nodes)
@@ -95,16 +95,16 @@ ToPhylo2 <- function(data){
 
 
 
-data <- res_sim$list_anc_dist[[10]]
-phy <- ToPhylo2(data)
-print(phy)
-
-# Read the tree and plot
-library(ape)
-tree <- read.tree(text = phy)
-plot(tree)
-
-phylo_distances <- cophenetic.phylo(tree)
-
-# View the matrix of distances
-phylo_distances
+# data <- res_sim$list_anc_dist[[10]]
+# phy <- ToPhylo2(data)
+# print(phy)
+# 
+# # Read the tree and plot
+# library(ape)
+# tree <- read.tree(text = phy)
+# plot(tree)
+# 
+# phylo_distances <- cophenetic.phylo(tree)
+# 
+# # View the matrix of distances
+# phylo_distances

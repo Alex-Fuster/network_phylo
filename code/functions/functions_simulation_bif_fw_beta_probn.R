@@ -296,7 +296,7 @@ sim_model = function(seed, pars, nsteps) {
               if(S >= Smax) break
               
               # Calculate the absolute difference between ancestor and mutant niche trait values
-              displacement_condition <- abs(traits_anc["n"] - traits_mut1["n"]) <= 0.09
+              displacement_condition <- abs(traits_anc["n"] - traits_mut1["n"]) <= 0.05
               
               # Apply the extinction rule for the ancestor based on the condition
               if (displacement_condition) {
@@ -347,7 +347,7 @@ sim_model = function(seed, pars, nsteps) {
               if(S >= Smax) break
               
               # Calculate the absolute difference between ancestor and mutant niche trait values
-              displacement_condition <- abs(traits_anc["n"] - traits_mut1["n"]) <= 0.09
+              displacement_condition <- abs(traits_anc["n"] - traits_mut1["n"]) <= 0.05
               
               # Apply the extinction rule for the ancestor based on the condition
               if (displacement_condition) {
