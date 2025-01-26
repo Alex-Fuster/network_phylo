@@ -2,9 +2,10 @@
 library(igraph)     
 library(cluster)    
 library(fpc)        
+library(tidyr)
 
 
-k_clusters = 5
+k_clusters = 10
 
 
 # Example data for timestep 20 (interaction matrix and phylogenetic correlation matrix)
@@ -71,35 +72,65 @@ rect.hclust(hc_phylo, k = k_clusters, border = "red")
 
 
 
+#####################
+
+# testing with 1 timestep
+
+# Example data for timestep 20 (interaction matrix and phylogenetic correlation matrix)
+interaction_matrix <- list_net_present_spp.letters[[1]]
+phylo_corr_matrix <- list_phylo.corr_cropped[[1]]
 
 
+# Step 1: Clustering interaction matrix using SBM (Stochastic Block Model)
+sbm_fit <- sbm::estimateSimpleSBM(interaction_matrix, model = "bernoulli")
+interaction_clusters <- sbm_fit$memberships
 
+# Step 2: Clustering phylogenetic correlation matrix using k-means with optimal clusters
+phylo_dist <- as.dist(1 - phylo_corr_matrix)  # Convert correlation to distance
 
+# Use silhouette analysis to determine optimal number of clusters
+sil_widths <- numeric()
+for (k in 2:5) {
+  clust <- kmeans(phylo_corr_matrix, centers = k, nstart = 25)
+  sil_widths[k] <- mean(silhouette(clust$cluster, phylo_dist)[, 3])
+}
+optimal_k <- which.max(sil_widths)
 
+# Perform k-means clustering with optimal number of clusters
+phylo_clusters <- kmeans(phylo_corr_matrix, centers = optimal_k, nstart = 25)$cluster
 
+# Step 3: Compare clusters using ARI and NMI
+ari_value <- cluster.stats(phylo_dist, phylo_clusters, interaction_clusters)$corrected.rand
+nmi_value <- compare(interaction_clusters, phylo_clusters, method = "nmi")
 
+# Step 4: Print results
+print(paste("Adjusted Rand Index (ARI):", ari_value))
+print(paste("Normalized Mutual Information (NMI):", nmi_value))
+
+# Step 5: Visualize the matrices
+heatmap(phylo_corr_matrix, main = "Phylogenetic Correlation Matrix", col = heat.colors(10))
+heatmap(interaction_matrix, main = "Interaction Matrix", col = blues9)
 
 
 ######################
 
 
-compute_cluster_metrics <- function(results_simulation, Smax, nbasals, num_clusters = 3) {
-  
+compute_optimal_cluster_metrics <- function(results_simulation, Smax, nbasals) {
   
   presence_matrix <- results_simulation$presence_matrix
   
   # Number of timesteps
   n_steps <- length(results_simulation$network_list)
   
-  # Identify timesteps where phylogenetic distances can't be calculated
-  non.valid_timesteps_phylo_distance <- c(which(rowSums(presence_matrix) < 3))
-  final.discarded_timestep <- (non.valid_timesteps_phylo_distance[length(non.valid_timesteps_phylo_distance)]) + 1
+  # Identify valid timesteps
+  non.valid_timesteps_phylo_distance <- which(rowSums(presence_matrix) < 3)
+  final.discarded_timestep <- ifelse(length(non.valid_timesteps_phylo_distance) > 0, 
+                                     max(non.valid_timesteps_phylo_distance) + 1, 1)
   
-  # Homogenize elements to start from valid timesteps
   list_anc_dist <- results_simulation$list_anc_dist[(final.discarded_timestep + 1):n_steps]
   network_list <- results_simulation$network_list[(final.discarded_timestep + 1):n_steps]
   
-  # Convert species names from numbers to letters
+  # Convert species names to letters
   list_anc_dist_letters <- lapply(list_anc_dist, change_sppnames_letters_ancdist.table)
   list_networks_sppnames_numbers <- lapply(network_list, set_sppNames_numbers)
   list_networks_sppnames_letters <- lapply(list_networks_sppnames_numbers, convert_sppnames_toletters)
@@ -109,13 +140,15 @@ compute_cluster_metrics <- function(results_simulation, Smax, nbasals, num_clust
   
   presence_matrix <- presence_matrix[(final.discarded_timestep + 1):n_steps, ]
   
-  # Initialize lists to store clustering results
+  # Store results
   ari_values <- numeric(length(list_networks_sppnames_letters))
   nmi_values <- numeric(length(list_networks_sppnames_letters))
   
-  for (i in 1:length(list_anc_dist_letters)) {
+  for (i in seq_along(list_anc_dist_letters)) {
     
-    # Process phylogenetic data
+    cat("Processing timestep:", i, "\n")
+    
+    # Process phylogenetic correlation matrix
     newick <- ToPhylo2(list_anc_dist_letters[[i]])
     newick_tail <- paste(newick, "root")
     tree <- read.tree(text = sub("A root",";", newick_tail))
@@ -127,19 +160,53 @@ compute_cluster_metrics <- function(results_simulation, Smax, nbasals, num_clust
     alive_species <- names(which(presence_matrix[i, ] == 1))
     phylo_corr_cropped <- phylo.corr[alive_species, alive_species]
     
-    # Clustering for phylogeny using hierarchical clustering
-    phylo_dist <- as.dist(1 - phylo_corr_cropped)  # Convert correlation to distance
-    phylo_clusters <- cutree(hclust(phylo_dist, method = "ward.D2"), k = num_clusters)
-    
-    # Clustering for interactions using k-means
+    # Clustering interaction matrix using SBM
     interaction_matrix <- list_networks_sppnames_letters[[i]][alive_species, alive_species]
-    kmeans_result <- kmeans(interaction_matrix, centers = num_clusters, nstart = 25)
-    interaction_clusters <- kmeans_result$cluster
     
-    # Compute ARI and NMI
-    ari_values[i] <- cluster.stats(d = phylo_dist, phylo_clusters, interaction_clusters)$corrected.rand
+    diag(interaction_matrix) <- 0  
+    
+    if (sum(interaction_matrix) == 0) {
+      cat("Sparse or empty interaction matrix at timestep:", i, "- Assigning all species to one cluster.\n")
+      interaction_clusters <- rep(1, nrow(interaction_matrix))
+    } else {
+      sbm_fit <- sbm::estimateSimpleSBM(interaction_matrix, model = "bernoulli")
+      interaction_clusters <- sbm_fit$memberships
+    }
+    
+    
+    
+    # Clustering phylogeny using k-means with automatic cluster number selection (gap statistic)
+    phylo_dist <- as.dist(1 - phylo_corr_cropped)
+    num_species <- nrow(phylo_corr_cropped)
+    
+    if (num_species > 2) {
+      max_k <- min(4, num_species - 1)
+      
+      set.seed(123)
+      gap_stat <- tryCatch({
+        result <- clusGap(phylo_corr_cropped, FUN = kmeans, K.max = max_k, B = 50)
+        if (is.null(result) || !is.list(result) || !("Tab" %in% names(result))) NULL else result
+      }, error = function(e) {
+        cat("Gap statistic failed at timestep:", i, "- Assigning all species to a single cluster.\n")
+        NULL
+      })
+      
+      if (!is.null(gap_stat) && is.matrix(gap_stat$Tab)) {
+        optimal_k <- which.max(gap_stat$Tab[, "gap"])
+        phylo_clusters <- kmeans(phylo_corr_cropped, centers = max(2, optimal_k), nstart = 25)$cluster
+      } else {
+        phylo_clusters <- rep(1, num_species)
+      }
+      
+    } else {
+      phylo_clusters <- rep(1, num_species)
+    }
+    
+    # Compare clusters using ARI and NMI
+    ari_values[i] <- cluster.stats(phylo_dist, phylo_clusters, interaction_clusters)$corrected.rand
     nmi_values[i] <- compare(interaction_clusters, phylo_clusters, method = "nmi")
   }
+  
   
   return(data.frame(
     timestep = 1:length(ari_values),
@@ -148,11 +215,22 @@ compute_cluster_metrics <- function(results_simulation, Smax, nbasals, num_clust
   ))
 }
 
+# Run the function with appropriate inputs
+cluster_results <- compute_optimal_cluster_metrics(results_simulation = res_sim, 
+                                                   Smax = pars$Smax, 
+                                                   nbasals = pars$Sbasal)
 
-cluster_results <- compute_cluster_metrics(results_simulation = res_sim, 
-                                           Smax = pars$Smax, 
-                                           nbasals = pars$Sbasal, 
-                                           num_clusters = 3)
 
-# View the results
-head(cluster_results)
+ggplot(cluster_results, aes(x = timestep)) +
+  geom_point(aes(y = ARI), color = 'blue', alpha = 0.7, size = 3) +
+  geom_line(aes(y = ARI), color = 'blue') +
+  geom_point(aes(y = NMI), color = 'red', alpha = 0.7, size = 3) +
+  geom_line(aes(y = NMI), color = 'red') +
+  labs(x = "Time Step", y = "Clustering Metrics", 
+       title = "ARI and NMI Over Time") +
+  theme_minimal() +
+  scale_y_continuous(limits = c(0, 1), name = "Metric Value") +
+  scale_x_continuous(name = "Time Step")+
+  theme(legend.position = "right")
+
+

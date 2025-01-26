@@ -1,6 +1,6 @@
 ---
-title: "R Notebook"
-
+title: "Phylogenetic signal"
+output: pdf_document
 ---
 
 ```{r}
@@ -16,13 +16,76 @@ library(ade4)
 library(ape)
 library(tidyr)
 library(ggraph)
+library(cluster)    
+library(fpc)  
+
+source(here::here("code/functions/functions_simulation.R")) 
 ```
+
+```{r}
+my.theme<-theme(axis.text=element_text(size=12),
+                axis.title = element_text(size = 14),
+                legend.position = "top",
+                legend.text=element_text(size=10),
+                legend.title = element_text(size=12),
+                plot.title = element_text(face="bold",size=14,margin=margin(0,0,20,0),hjust = 0.5),
+                axis.title.y = element_text(margin = margin(t = 0, r = 15, b = 0, l = 0)),
+                axis.title.x = element_text(margin = margin(t = 15, r = 0, b = 0, l = 0)))
+```
+
+
+
+Function to obtain the newick tree format from the ancestry tables
+
+```{r}
+ToPhylo2 <- function(data){
+  data.2 <- data
+  data.2$repr <- data$spp
+  sisters <- levels(as.factor(data$spp))
+  mothers <- levels(as.factor(data$ancestor))
+  tips <- setdiff(sisters, mothers)
+  root <- setdiff(mothers, sisters)
+  
+  # the root might be ancestor=0
+  if(length(root) == 0) root <- 0
+  foc.nodes <- unique(data[which(data$spp %in% tips), "ancestor"])
+  n <- length(foc.nodes)
+  data.2$repr[data.2$spp %in% tips] <- data.2$repr[data.2$spp %in% tips]
+  
+  while(n > 1){
+    foc.nodes2 <- unique(data.2[which(data.2$spp %in% foc.nodes), "ancestor"])
+    for(i in 1:n){
+      daughters <- data.2[which(data.2$ancestor == foc.nodes[i]), "repr"]
+      daughters.dist <- data.2[which(data.2$ancestor == foc.nodes[i]), "distance"]
+      
+      # This block handles the case where the ancestor is still extant (coexists with mutants)
+      if(foc.nodes[i] %in% data.2$spp){
+        daughters <- c(daughters, foc.nodes[i])
+        daughters.dist <- c(daughters.dist, 0)  # Set ancestor's distance as 0
+      }
+      
+      data.2$repr[data.2$spp == foc.nodes[i]] <- paste0(sister.group(daughters, daughters.dist), foc.nodes[i])
+    }
+    tips <- foc.nodes
+    foc.nodes <- foc.nodes2
+    n <- length(foc.nodes)
+  }
+  
+  daughters <- data.2[which(data.2$ancestor == foc.nodes[1]), "repr"]
+  daughters.dist <- data.2[which(data.2$ancestor == foc.nodes[1]), "distance"]
+  
+  paste0(sister.group(daughters, daughters.dist), root, ";")  # Ensuring the tree ends with a semicolon
+}
+
+```
+
+
 
 
 Load results from 1 simulation (change file path as needed)
 
 ```{r}
-res_sim <- readRDS(here::here("results_toplot_networks_timesteps.rds"))
+res_sim <- readRDS(here::here("output/results_toplot_networks_timesteps.rds"))
 ```
 
 
@@ -31,12 +94,10 @@ res_sim <- readRDS(here::here("results_toplot_networks_timesteps.rds"))
 Load functions (change file path as needed)
 
 ```{r}
-source(here::here("functions_simulation_inspection.R"))
-inspect_simulation_fw(simulation_data = res_sim, nbasals = pars$Sbasal, Smax = pars$Smax)
+nsteps =  141
+source(here::here("code/functions/functions_simulation_inspection.R"))
+inspect_simulation_fw(simulation_data = res_sim, nbasals = 5, Smax = 1000)
 ```
-
-
-
 
 
 ## Function to compute distance matrices
@@ -307,72 +368,175 @@ compute_dist_matrices <- function(results_simulation, int, Smax, nbasals) {
 ```
 
 
-
-Run function on results from 1 simulation:
-
 ```{r}
 sdv_matrices <- compute_dist_matrices(results_simulation = res_sim,
     		                       int = "foodweb",
-    		                      Smax = pars$Smax,
-    		                      nbasals = pars$Sbasal)
+    		                      Smax = 1000,
+    		                      nbasals = 5)
 
 list_svd_pred <- sdv_matrices$list_svd_pred
 list_svd_eigen.phy <- sdv_matrices$list_svd_eigen.phy
 
-#list_network <- sdv_matrices$list_net_present_spp.letters
-#list_corrphylo <- sdv_matrices$list_phylo.corr_cropped
+list_network <- sdv_matrices$list_net_present_spp.letters
+list_corrphylo <- sdv_matrices$list_phylo.corr_cropped
 ```
 
 
 
-# Compute phylosignal
+# Method 1 - Procrustes correlation 
 
 
-## Mantel corr between all axes of sdv
+## 1.1. Procrustes using only the 6 first axes
 
 
 ```{r}
-# Initialize vectors to store results
+
 timestep <- vector()
 S <- vector()
-cor_mantel <- vector()
+cor <- vector()
+kept_axes <- 6  # Number of axes to keep if S > 6
 
-# Loop through each timestep to compute Mantel correlations
+# Loop through each timestep to compute Procrustes correlations
 for (i in seq_along(list_svd_pred)) {
   
-  # Extract SVD results for prediction and phylogenetic matrices
-  svd_pred <- list_svd_pred[[i]]
-  svd_phy <- list_svd_eigen.phy[[i]]
+  # Get the number of species (community size) at this timestep
+  current_S <- ncol(list_svd_pred[[i]])
   
-  # Compute pairwise Euclidean distance matrices for both
-   dist_pred <- dist(svd_pred)
-   dist_phy <- dist(svd_phy)
+  # Determine the number of axes to keep
+  if (current_S <= kept_axes) {
+    # Keep all axes if S is less than or equal to 6
+    svd_pred_kept <- list_svd_pred[[i]]
+    svd_phy_kept <- list_svd_eigen.phy[[i]]
+  } else {
+    # Keep only 6 axes if S is greater than 6
+    svd_pred_kept <- list_svd_pred[[i]][, 1:kept_axes]
+    svd_phy_kept <- list_svd_eigen.phy[[i]][, 1:kept_axes]
+  }
   
-  
-  # Run Mantel test to compare the two distance matrices
-  mantel_result <- mantel(dist_phy, dist_pred, permutations = 999)
+  # Run Procrustes analysis on the selected axes
+  proc <- protest(svd_pred_kept, svd_phy_kept)
   
   # Store results
   timestep[i] <- i
-  S[i] <- ncol(list_svd_pred[[i]])  # Number of species (community size)
-  cor_mantel[i] <- mantel_result$statistic  # Mantel correlation coefficient
+  S[i] <- current_S  # Number of species (community size)
+  cor[i] <- proc$t0
 }
 
-df_mantel_results <- data.frame(timestep = timestep, 
-                                S = S, 
-                                cor_mantel = cor_mantel)
+# Create a dataframe to store results
+df_results <- data.frame(timestep = timestep, 
+                         S = S, 
+                         cor = cor)
 
-ggplot(df_mantel_results, aes(x = timestep, y = cor_mantel)) +
-  geom_point(alpha = 0.5) +  
-  labs(x = "Time Steps", y = "Mantel Correlation") +
+ggarrange(
+  
+  # Plot the correlation along community size S
+ggplot(df_results, aes(x = timestep, y = cor)) +
+  geom_point(alpha = 0.5) +  # Add transparency to the points
+  #geom_smooth(method = "gam", formula = y ~ s(x), se = TRUE) +  # Add GAM smooth line with confidence interval
+  labs(x = "Time Steps", y = "Phylogenetic signal") +
   theme_classic() +
-  geom_vline(xintercept = I_max, linetype = "dashed") +
-  ylim(0, 1)
+  ylim(0, 1),
+
+
+  ggplot(df_results, aes(x = S, y = cor)) +
+  geom_point(alpha = 0.5) +  # Add transparency to the points
+  #geom_smooth(method = "gam", formula = y ~ s(x), se = TRUE) +  # Add GAM smooth line with confidence interval
+  labs(x = "Species richness", y = "Phylogenetic signal") +
+  theme_classic() +
+  ylim(0, 1),
+
+ncol = 2, 
+nrow = 1
+  
+)
+
 ```
 
 
-## Manel corr between optimized axes
+## test if size drives this relationship
 
+
+```{r}
+set.seed(123)  # Ensure reproducibility
+
+# Initialize vectors to store results
+timestep <- vector()
+S <- vector()
+cor_observed <- vector()
+cor_shuffled <- vector()
+kept_axes <- 6  # Number of axes to keep if S > 6
+num_permutations <- 5  # Number of shuffling iterations
+
+# Loop through each timestep to compute Procrustes correlations
+for (i in seq_along(list_svd_pred)) {
+  
+  # Get the number of species (community size) at this timestep
+  current_S <- ncol(list_svd_pred[[i]])
+  
+  # Determine the number of axes to keep
+  if (current_S <= kept_axes) {
+    svd_pred_kept <- list_svd_pred[[i]]
+    svd_phy_kept <- list_svd_eigen.phy[[i]]
+  } else {
+    svd_pred_kept <- list_svd_pred[[i]][, 1:kept_axes]
+    svd_phy_kept <- list_svd_eigen.phy[[i]][, 1:kept_axes]
+  }
+  
+  # Compute observed Procrustes correlation
+  proc_observed <- protest(svd_pred_kept, svd_phy_kept)
+  
+  # Store observed correlation
+  timestep[i] <- i
+  S[i] <- current_S  # Number of species (community size)
+  cor_observed[i] <- proc_observed$t0
+  
+  # Generate shuffled correlation values
+  cor_shuffled_replicates <- numeric(num_permutations)
+  
+  for (j in 1:num_permutations) {
+    # Shuffle the phylogenetic matrix columns randomly
+    shuffled_phy <- svd_phy_kept[sample(nrow(svd_phy_kept)), ]
+    
+    # Run Procrustes analysis on shuffled data
+    proc_shuffled <- protest(svd_pred_kept, shuffled_phy)
+    cor_shuffled_replicates[j] <- proc_shuffled$t0
+  }
+  
+  # Store the average of shuffled correlations
+  cor_shuffled[i] <- mean(cor_shuffled_replicates)
+}
+
+# Create a dataframe to store results
+df_results <- data.frame(timestep = timestep, 
+                         S = S, 
+                         cor_observed = cor_observed,
+                         cor_shuffled = cor_shuffled)
+
+# Plot observed vs shuffled Procrustes correlation over time
+ggplot(df_results, aes(x = timestep)) +
+  geom_point(aes(y = cor_observed), color = "blue", alpha = 0.5) + 
+  geom_point(aes(y = cor_shuffled), color = "red", alpha = 0.5) + 
+  labs(x = "Time Steps", y = "Procrustes Correlation", 
+       title = "Observed vs. Shuffled Procrustes Correlations") +
+  theme_classic() +
+  ylim(0, 1) +
+  scale_color_manual(values = c("blue" = "Observed", "red" = "Shuffled"))
+
+# Plot observed and shuffled correlation as a function of species richness
+ggplot(df_results, aes(x = S)) +
+  geom_point(aes(y = cor_observed), color = "blue", alpha = 0.5) + 
+  geom_point(aes(y = cor_shuffled), color = "red", alpha = 0.5) + 
+  labs(x = "Species Richness", y = "Procrustes Correlation", 
+       title = "Effect of Species Richness on Procrustes Correlations") +
+  theme_classic() +
+  ylim(0, 1)
+
+```
+
+Procrustes correlations is totally influenced by the size of the matrix, even if only keeping the 6 first dimensions of all matrices. 
+
+
+## 1.2. Procrustes correlation with optimized number of axes
 
 ```{r}
 # Initialize vectors to store results
@@ -412,12 +576,128 @@ for (i in seq_along(list_svd_pred)) {
   svd_pred_kept <- list_svd_pred[[i]][, 1:num_axes_to_keep]
   svd_phy_kept <- list_svd_eigen.phy[[i]][, 1:num_axes_to_keep]
   
-     dist_pred <- dist(svd_pred_kept)
-   dist_phy <- dist(svd_phy_kept)
-  
   # Run Procrustes analysis on the selected axes
+  proc <- protest(svd_pred_kept, svd_phy_kept)
+  
+  # Store results
+  timestep[i] <- i
+  S[i] <- ncol(list_svd_pred[[i]])  # Number of species (community size)
+  cor[i] <- proc$t0
+}
+
+# Create a dataframe to store results
+df_results <- data.frame(timestep = timestep, 
+                         S = S, 
+                         cor = cor,
+                         d_phylo = d_phylo,
+                         d_network = d_network)
+
+# Plot the correlation along community size S
+ggplot(df_results, aes(x = timestep, y = cor)) +
+  geom_point(alpha = 0.5) + # Plot points for the correlation
+ # geom_smooth(method = "gam", formula = y ~ s(x)) + # Add GAM smooth line
+  labs(x = "Time steps", y = "Phylogenetic signal") +
+  theme_classic() +
+  ylim(0,1)
+```
+
+
+
+
+
+
+# Method 2 - Mantel correlation between network and phylogenetic egeinvectors
+
+
+## 2.1 - using all axes
+
+```{r}
+# Initialize vectors to store results
+timestep <- vector()
+S <- vector()
+cor_mantel <- vector()
+
+# Loop through each timestep to compute Mantel correlations
+for (i in seq_along(list_svd_pred)) {
+  
+  # Extract SVD results for prediction and phylogenetic matrices
+  svd_pred <- list_svd_pred[[i]]
+  svd_phy <- list_svd_eigen.phy[[i]]
+  
+  # Compute pairwise Euclidean distance matrices for both
+   dist_pred <- dist(svd_pred)
+   dist_phy <- dist(svd_phy)
+  
+  
+  # Run Mantel test to compare the two distance matrices
   mantel_result <- mantel(dist_phy, dist_pred, permutations = 999)
   
+  # Store results
+  timestep[i] <- i
+  S[i] <- ncol(list_svd_pred[[i]])  # Number of species (community size)
+  cor_mantel[i] <- mantel_result$statistic  # Mantel correlation coefficient
+}
+
+df_mantel_results <- data.frame(timestep = timestep, 
+                                S = S, 
+                                cor_mantel = cor_mantel)
+
+ggplot(df_mantel_results, aes(x = timestep, y = cor_mantel)) +
+  geom_point(alpha = 0.5) +  
+  labs(x = "Time Steps", y = "Mantel Correlation") +
+  theme_classic() +
+  #geom_vline(xintercept = I_max, linetype = "dashed") +
+  ylim(0, 1)
+```
+
+
+## 2.2 Manel corr between optimized axes
+
+
+```{r}
+# Initialize vectors to store results
+timestep <- vector()
+S <- vector()
+cor <- vector()
+d_phylo <- vector()
+d_network <- vector()
+threshold <- 0.9  # Threshold for explained variance (e.g., 90%)
+
+# Loop through each timestep to compute Procrustes correlations
+for (i in seq_along(list_svd_pred)) {
+
+  # Extract singular values from the original SVD for the interaction matrix
+  svd_result <- svd(list_network[[i]])
+  singular_values <- svd_result$d
+
+  # Compute cumulative explained variance for the interaction matrix
+  cum_var_pred <- cumsum(singular_values^2) / sum(singular_values^2)
+
+  # Compute cumulative explained variance for the phylogenetic matrix
+  eigenvalues_phy <- eigen(list_corrphylo[[i]], symmetric = TRUE)$values
+  cum_var_phy <- cumsum(eigenvalues_phy) / sum(eigenvalues_phy)
+
+  # Determine the number of axes needed to reach the threshold (90% variance)
+  num_axes_pred <- min(which(cum_var_pred >= threshold))
+  num_axes_phy <- min(which(cum_var_phy >= threshold))
+
+  # Store the number of dimensions retained for each matrix
+  d_network[i] <- num_axes_pred
+  d_phylo[i] <- num_axes_phy
+
+  # Decide on the number of axes to keep: the maximum of the two
+  num_axes_to_keep <- max(num_axes_pred, num_axes_phy)
+
+  # Adjust matrices to keep only the necessary axes
+  svd_pred_kept <- list_svd_pred[[i]][, 1:num_axes_to_keep]
+  svd_phy_kept <- list_svd_eigen.phy[[i]][, 1:num_axes_to_keep]
+
+     dist_pred <- dist(svd_pred_kept)
+   dist_phy <- dist(svd_phy_kept)
+
+  # Run Procrustes analysis on the selected axes
+  mantel_result <- mantel(dist_phy, dist_pred, permutations = 999)
+
    # Store results
   timestep[i] <- i
   S[i] <- ncol(list_svd_pred[[i]])  # Number of species (community size)
@@ -425,16 +705,15 @@ for (i in seq_along(list_svd_pred)) {
 }
 
 
-df_mantel_results <- data.frame(timestep = timestep, 
-                                S = S, 
+df_mantel_results <- data.frame(timestep = timestep,
+                                S = S,
                                 cor_mantel = cor_mantel)
 
 # Plot the Mantel correlation along time steps
 ggplot(df_mantel_results, aes(x = timestep, y = cor_mantel)) +
-  geom_point(alpha = 0.5) +  
+  geom_point(alpha = 0.5) +
   labs(x = "Time Steps", y = "Mantel Correlation") +
   theme_classic() +
-  geom_vline(xintercept = I_max, linetype = "dashed") +
   ylim(0, 1)
 
 
@@ -450,17 +729,218 @@ df_long <- reshape2::melt(df_results, id.vars = "timestep", measure.vars = c("d_
                           variable.name = "Dimension_Type", value.name = "Dimensions")
 
 ggplot(df_long, aes(x = timestep, y = Dimensions, color = Dimension_Type)) +
-  geom_point() + 
-  geom_line() +  
+  geom_point() +
+  geom_line() +
   labs(x = "timestep", y = "Number of Dimensions Retained",
        color = "Dimension Type") +
   theme_classic() +
-  scale_color_manual(values = c("d_phylo" = "blue", "d_network" = "red")) 
+  scale_color_manual(values = c("d_phylo" = "blue", "d_network" = "red"))
 ```
 
 
 
 
+## Test the effect of network size on Mantel results
+
+I compare the results with those obtained from shuffled matrices to test whether the relationship I observe is only due to the size of the matrices (it may be that the more size, the more difficult to have high correlations).
 
 
+```{r}
+# Function to shuffle matrix values while keeping the structure
+shuffle_matrix <- function(matrix) {
+  shuffled_values <- sample(as.vector(matrix))  # Shuffle all values
+  shuffled_matrix <- matrix(shuffled_values, nrow = nrow(matrix), ncol = ncol(matrix))
+  return(shuffled_matrix)
+}
+
+
+timestep <- vector()
+S <- vector()
+cor_mantel_original <- vector()
+cor_mantel_shuffled <- vector()
+
+set.seed(123)
+
+# Mantel correlations for both original and shuffled matrices
+for (i in seq_along(list_svd_pred)) {
+  
+  # Original matrices
+  svd_pred <- list_svd_pred[[i]]
+  svd_phy <- list_svd_eigen.phy[[i]]
+  
+ # Compute distance for original matrices
+  dist_pred <- dist(svd_pred)
+  dist_phy <- dist(svd_phy)
+  
+  # Run Mantel test for original matrices
+  mantel_result_orig <- mantel(dist_phy, dist_pred, permutations = 999)
+  
+  # Shuffle matrices
+  svd_pred_shuffled <- shuffle_matrix(svd_pred)
+  svd_phy_shuffled <- shuffle_matrix(svd_phy)
+  
+  # Compute distance for shuffled matrices
+  dist_pred_shuffled <- dist(svd_pred_shuffled)
+  dist_phy_shuffled <- dist(svd_phy_shuffled)
+  
+  # Run Mantel test for shuffled matrices
+  mantel_result_shuffled <- mantel(dist_phy_shuffled, dist_pred_shuffled, permutations = 999)
+  
+  # store results
+  timestep[i] <- i
+  S[i] <- ncol(list_svd_pred[[i]])  
+  cor_mantel_original[i] <- mantel_result_orig$statistic 
+  cor_mantel_shuffled[i] <- mantel_result_shuffled$statistic  
+}
+
+# dataframe to store results
+df_mantel_results <- data.frame(
+  timestep = timestep, 
+  S = S, 
+  cor_mantel_original = cor_mantel_original,
+  cor_mantel_shuffled = cor_mantel_shuffled
+)
+
+# Mantel correlation over time for original vs shuffled matrices
+ggplot(df_mantel_results, aes(x = timestep)) +
+  geom_point(aes(y = cor_mantel_original, color = "Original"), alpha = 0.5) +
+  geom_point(aes(y = cor_mantel_shuffled, color = "Shuffled"), alpha = 0.5) +
+  labs(x = "Time Steps", y = "Mantel Correlation", color = "Matrix Type") +
+  theme_classic() +
+  ylim(0, 1) +
+  theme(legend.position = "top")
+
+```
+
+Seems to be the case that the size is driving the pattern, not the fact that the niche is being filled. Or at least I cannot say this is not the case.
+
+
+# Method 3 - compare clusters
+
+
+```{r}
+compute_optimal_cluster_metrics <- function(results_simulation, Smax, nbasals) {
+  
+  presence_matrix <- results_simulation$presence_matrix
+  
+  # Number of timesteps
+  n_steps <- length(results_simulation$network_list)
+  
+  # Identify valid timesteps
+  non.valid_timesteps_phylo_distance <- which(rowSums(presence_matrix) < 3)
+  final.discarded_timestep <- ifelse(length(non.valid_timesteps_phylo_distance) > 0, 
+                                     max(non.valid_timesteps_phylo_distance) + 1, 1)
+  
+  list_anc_dist <- results_simulation$list_anc_dist[(final.discarded_timestep + 1):n_steps]
+  network_list <- results_simulation$network_list[(final.discarded_timestep + 1):n_steps]
+  
+  # Convert species names to letters
+  list_anc_dist_letters <- lapply(list_anc_dist, change_sppnames_letters_ancdist.table)
+  list_networks_sppnames_numbers <- lapply(network_list, set_sppNames_numbers)
+  list_networks_sppnames_letters <- lapply(list_networks_sppnames_numbers, convert_sppnames_toletters)
+  
+  colnames(presence_matrix) <- seq(1:Smax)
+  colnames(presence_matrix) <- chartr("0123456789", "ABCDEFGHIJ", colnames(presence_matrix))
+  
+  presence_matrix <- presence_matrix[(final.discarded_timestep + 1):n_steps, ]
+  
+  # Store results
+  ari_values <- numeric(length(list_networks_sppnames_letters))
+  nmi_values <- numeric(length(list_networks_sppnames_letters))
+  
+  for (i in seq_along(list_anc_dist_letters)) {
+    
+    cat("Processing timestep:", i, "\n")
+    
+    # Process phylogenetic correlation matrix
+    newick <- ToPhylo2(list_anc_dist_letters[[i]])
+    newick_tail <- paste(newick, "root")
+    tree <- read.tree(text = sub("A root",";", newick_tail))
+    
+    tree$edge.length <- sapply(tree$edge.length, function(x) ifelse(x == 0, 1e-5, x))
+    phylo.vcv <- vcv(tree)
+    phylo.corr <- cov2cor(phylo.vcv)
+    
+    alive_species <- names(which(presence_matrix[i, ] == 1))
+    phylo_corr_cropped <- phylo.corr[alive_species, alive_species]
+    
+    # Clustering interaction matrix using SBM
+    interaction_matrix <- list_networks_sppnames_letters[[i]][alive_species, alive_species]
+    
+    diag(interaction_matrix) <- 0  
+    
+    if (sum(interaction_matrix) == 0) {
+      cat("Sparse or empty interaction matrix at timestep:", i, "- Assigning all species to one cluster.\n")
+      interaction_clusters <- rep(1, nrow(interaction_matrix))
+    } else {
+      sbm_fit <- sbm::estimateSimpleSBM(interaction_matrix, model = "bernoulli")
+      interaction_clusters <- sbm_fit$memberships
+    }
+    
+    
+    
+    # Clustering phylogeny using k-means with automatic cluster number selection (gap statistic)
+    phylo_dist <- as.dist(1 - phylo_corr_cropped)
+    num_species <- nrow(phylo_corr_cropped)
+    
+    if (num_species > 2) {
+      max_k <- min(4, num_species - 1)
+      
+      set.seed(123)
+      gap_stat <- tryCatch({
+        result <- clusGap(phylo_corr_cropped, FUN = kmeans, K.max = max_k, B = 50, verbose = FALSE)
+        if (is.null(result) || !is.list(result) || !("Tab" %in% names(result))) NULL else result
+      }, error = function(e) {
+        cat("Gap statistic failed at timestep:", i, "- Assigning all species to a single cluster.\n")
+        NULL
+      })
+      
+      if (!is.null(gap_stat) && is.matrix(gap_stat$Tab)) {
+        optimal_k <- which.max(gap_stat$Tab[, "gap"])
+        phylo_clusters <- kmeans(phylo_corr_cropped, centers = max(2, optimal_k), nstart = 25)$cluster
+      } else {
+        phylo_clusters <- rep(1, num_species)
+      }
+      
+    } else {
+      phylo_clusters <- rep(1, num_species)
+    }
+    
+    # Compare clusters using ARI and NMI
+    ari_values[i] <- cluster.stats(phylo_dist, phylo_clusters, interaction_clusters)$corrected.rand
+    nmi_values[i] <- compare(interaction_clusters, phylo_clusters, method = "nmi")
+  }
+  
+  
+  return(data.frame(
+    timestep = 1:length(ari_values),
+    ARI = ari_values,
+    NMI = nmi_values
+  ))
+}
+
+```
+
+
+
+```{r}
+# Run the function with appropriate inputs
+cluster_results <- compute_optimal_cluster_metrics(results_simulation = res_sim, 
+                                                   Smax = 1000, 
+                                                   nbasals = 5)
+```
+
+```{r}
+ggplot(cluster_results, aes(x = timestep)) +
+  geom_point(aes(y = ARI), color = 'blue', alpha = 0.7, size = 3) +
+  geom_line(aes(y = ARI), color = 'blue') +
+  geom_point(aes(y = NMI), color = 'red', alpha = 0.7, size = 3) +
+  geom_line(aes(y = NMI), color = 'red') +
+  labs(x = "Time Step", y = "Clustering Metrics", 
+       title = "ARI and NMI Over Time") +
+  theme_minimal() +
+  scale_y_continuous(limits = c(0, 1), name = "Metric Value") +
+  scale_x_continuous(name = "Time Step")+
+  theme(legend.position = "right")
+```
 

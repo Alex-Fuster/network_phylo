@@ -554,7 +554,7 @@ ggplot(df_mantel_results, aes(x = timestep, y = cor_mantel)) +
   geom_point(alpha = 0.5) +  # Plot points with transparency
   labs(x = "Time Steps", y = "Mantel Correlation") +
   theme_classic() +
-  geom_vline(xintercept = I_max, linetype = "dashed") +
+  #geom_vline(xintercept = I_max, linetype = "dashed") +
   ylim(0, 1)
 ```
 
