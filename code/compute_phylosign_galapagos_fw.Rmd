@@ -453,3 +453,86 @@ for (i in unique(names(metaweb_pariles))) {
 }
 ```
 
+###############
+
+
+```{r}
+library(vegan)
+library(ggplot2)
+
+compute_island_mantel <- function(metaweb_pariles, sub.tree, island_features) {
+  # Initialize results
+  island_names <- names(metaweb_pariles)
+  correlations <- numeric(length(island_names))
+  
+  # Loop through each island
+  for (i in seq_along(metaweb_pariles)) {
+    island_name <- island_names[i]
+    interaction_matrix <- metaweb_pariles[[i]]
+    species_present <- rownames(interaction_matrix)
+    
+    # Crop the phylogenetic tree to the species present
+    island_tree <- drop.tip(sub.tree, setdiff(sub.tree$tip.label, species_present))
+    pruned_species <- island_tree$tip.label
+    
+    # Compute the phylogenetic correlation matrix
+    phylo_vcv <- vcv(island_tree)
+    phylo_corr <- cov2cor(phylo_vcv)
+    
+    # Retain only species present in both matrices
+    interaction_matrix <- interaction_matrix[rownames(phylo_corr), colnames(phylo_corr), drop = FALSE]
+    
+    # Check if there are enough species to compute distances
+    if (nrow(interaction_matrix) > 2) {
+      # Perform SVD on the interaction matrix
+      svd_result <- svd(interaction_matrix)
+      svd_pred <- svd_result$u  # Use left singular vectors
+      
+      # Calculate distance matrices
+      dist_phylo <- dist(phylo_corr)
+      dist_pred <- dist(svd_pred)
+      
+      # Perform the Mantel test
+      mantel_result <- mantel(dist_phylo, dist_pred, permutations = 999)
+      correlations[i] <- mantel_result$statistic
+    } else {
+      correlations[i] <- NA  # Not enough species for Mantel test
+    }
+  }
+  
+  # Combine results with island features
+  result_df <- data.frame(
+    island = island_names,
+    correlation = correlations,
+    age = island_features$age[match(island_names, island_features$island)]
+  )
+  
+  return(result_df)
+}
+
+# Compute the Mantel correlations
+island_results <- compute_island_mantel(metaweb_pariles, sub.tree, island_features)
+
+# Plot the correlation against island age
+ggplot(island_results, aes(x = age, y = abs(correlation))) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE, color = "black") +
+  labs(x = "Island Age", y = "Phylogenetic Signal (Mantel Correlation)") +
+  theme_classic(base_size = 14)
+
+```
+
+```{r}
+# Ensure mantel correlation values are absolute
+island_results$correlation <- abs(island_results$correlation)
+
+# Fit a linear model: mantel correlation (response) vs. island age (predictor)
+lm_model <- lm(correlation ~ age, data = island_results)
+
+# Print the summary of the model
+summary(lm_model)
+
+# Visualize the relationship with a linear regres
+
+```
+

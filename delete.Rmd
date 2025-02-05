@@ -1,0 +1,136 @@
+---
+title: "R Notebook"
+---
+
+  
+  ## **1. Initialization Phase**
+  - **Set seed for reproducibility**
+  - **Generate basal species traits:**  
+  - Draw random basal species niche values \( n \) from uniform distribution \([0, 0.005]\).
+- **Generate the first species:**  
+  - Traits are initialized randomly using `rand_traits_anc(pars)`, including:
+  - \( n \): niche position
+- \( r \): niche range
+- \( o \): optimum trait value.
+- **Initialize presence-absence matrix:**  
+  - The first species is set to present in the matrix.
+- **Set up ancestry tracking and phylogenetic distance matrix:**  
+  - Track ancestor-descendant relationships and distances over time.
+- **Initialize interaction matrices:**  
+  - Track species interactions across time steps.
+
+---
+  
+  ## **2. Main Evolutionary Loop (For each timestep)**
+  
+  ### **Step 1: Update species presence and ancestry**
+  - Iterate over present species:
+  - Track living species and update their ancestry distance.
+
+### **Step 2: Speciation Process**
+- **Probability of speciation:**  
+  \[
+    P_{\text{speciation}} = \frac{u_{\max}}{1 + e^{d (S_{\text{actual}} - I_{\max})}}
+    \]
+- Randomly decide if speciation occurs based on this probability.
+- **Trait mutation:**  
+  - Generate mutant species traits using `rand_traits_mut()` function.
+- Direction of mutation: "greater" or "lesser" niche value.
+
+### **Step 3: Establishment of the mutant species**
+- Compute number of interactions for the mutant:  
+  \[
+    \text{sum}_I = \sum L
+    \]
+- Calculate **establishment probability:**  
+  \[
+    P_{\text{estab}} = SN \cdot P_{\text{neutral}} + (1 - SN) \cdot P_{\text{selected}}
+    \]
+- If successful, the new species is added.
+- If niche overlap is minimal, ancestor may go extinct.
+
+---
+  
+  ## **3. Interaction Matrix Construction**
+  - Using the function `get_L_mat()` to create a species interaction matrix based on:
+  - **Niche overlap conditions:**  
+  - Lower and upper niche boundaries:  
+  \[
+    \text{Low} = o - r, \quad \text{High} = o + r
+    \]
+- **Gaussian probability function:**  
+  \[
+    P_{\text{interaction}} = \exp\left(-\frac{(\text{distance})^2}{2\sigma^2}\right)
+    \]
+- **Predation penalty for prey with higher niche values.**
+  - **Binomial probability draw** to determine interactions.
+
+---
+  
+  ## **4. Extinction Process**
+  - Compute interaction matrix for all species.
+- Calculate extinction probability based on:
+  - **Outgoing interaction sums:**  
+  \[
+    P_{\text{ext, top-down}} = e_{0_{\text{neg}}} + e_{1_{\text{neg}}} (1 - e^{-a_{\text{neg}}} \cdot \text{out}_I)
+    \]
+- **Competition-based extinction probability:**  
+  \[
+    P_{\text{ext, comp}} = 1 - e^{-\alpha \cdot \text{similarity}}
+    \]
+- Combination of both:
+  \[
+    P_{\text{ext}} = \beta_{\text{ext}} \cdot P_{\text{ext, top-down}} + (1 - \beta_{\text{ext}}) \cdot P_{\text{ext, comp}}
+    \]
+- Species with no resources go extinct with probability = 1.
+
+---
+  
+  ## **5. Recording and Stopping Conditions**
+  - Record and update:
+  - Presence matrix.
+- Ancestry distances.
+- Interaction matrices.
+- Species guilds (herbivores, predators, omnivores).
+- Stop simulation if species richness falls below a threshold (e.g., 3 species).
+
+---
+  
+  ## **6. Output of the Simulation**
+  The final output includes:
+  
+  - Species presence over time.
+- Trait evolution.
+- Interaction matrices for each timestep.
+- Phylogenetic ancestry.
+- Guild classification of species.
+
+
+
+---------
+
+### Probability of Establishment
+
+The probability of establishment is given by the equation:
+
+\[
+P_{\text{establishment}} = SN \cdot P_{\text{neutral}} + (1 - SN) \cdot P_{\text{selective}}
+\]
+
+where:
+
+- \( SN \) is the weight given to stochastic versus selective establishment.
+- \( P_{\text{neutral}} \) represents the neutral establishment probability.
+- \( P_{\text{selective}} \) is calculated as:
+
+\[
+P_{\text{selective}} = u_{0\text{pos}} + u_{1\text{pos}} \cdot e^{-a_{\text{upos}} \cdot I}
+\]
+
+where:
+
+- \( u_{0\text{pos}} \) is the baseline probability of establishment.
+- \( u_{1\text{pos}} \) is the maximum probability contribution from interactions.
+- \( a_{\text{upos}} \) is the sensitivity parameter for interactions.
+- \( I \) is the number of interactions with existing species.
+\]
